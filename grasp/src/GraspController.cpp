@@ -148,27 +148,35 @@ bool GraspController::graspControl() {
 
         printf("\033[0;31m%s\033[0m\n", "================================= 生成移动任务 ===============================");
 
-        int leftOrright = ((int)RotRectsAndID.first[0].center.x <= width/2) ? 0 : 1; // 简单处理左右手分工
+        for (size_t i = 0; i < RotRectsAndID.first.size(); i++) {
 
-        std::vector<double> targetPose = _graphicsGrasp->getObjPose(RotRectsAndID.first[0], cloud, leftOrright); // 获取积木中心点
+            int leftOrright = ((int)RotRectsAndID.first[i].center.x < 410) ? 0 : 1; // 简单处理左右手分工
 
-        // 修改姿态
-        if (leftOrright == 1) { // 右臂
-            targetPose[0] -= 0.2;
-            targetPose[3] = 1.54;
-            targetPose[4] = RotRectsAndID.first[0].angle * M_PI / 180.0;
-            targetPose[5] = -1.54;
-        } else if (leftOrright == 0) {
-            targetPose[0] += 0.2;
-            targetPose[3] = -1.54;
-            targetPose[4] = RotRectsAndID.first[0].angle * M_PI / 180.0;
-            targetPose[5] = 1.54;
+            std::vector<double> targetPose = _graphicsGrasp->getObjPose(RotRectsAndID.first[i], cloud, leftOrright);
+
+            // 修改姿态
+            if (leftOrright == 1) { // 右臂
+                targetPose[0] += 0.3;
+                targetPose[3] = 1.54;
+                targetPose[4] = RotRectsAndID.first[i].angle * M_PI / 180.0;
+                targetPose[5] = -1.54;
+            } else if (leftOrright == 0) {
+                targetPose[0] -= 0.3;
+                targetPose[3] = -1.54;
+                targetPose[4] = RotRectsAndID.first[i].angle * M_PI / 180.0;
+                targetPose[5] = 1.54;
+            }
+
+            printf("[INFO] 待抓取物体信息 ID:[%d] Angle:[%f] left/right[%d] Pose:[%f,%f,%f,%f,%f,%f]\n\n",
+                   RotRectsAndID.second[i],
+                   RotRectsAndID.first[i].angle, leftOrright, targetPose[0], targetPose[1],
+                   targetPose[2], targetPose[3], targetPose[4], targetPose[5]);
+
+//        movePath(targetPose, 0.1, 0.1, leftOrright); // 移动
         }
 
-        printf("[INFO] 带抓取物体信息 ID:[%d] Angle:[%f] left/right[%d] Pose:[%f,%f,%f,%f,%f,%f]\n", RotRectsAndID.second[0],
-               RotRectsAndID.first[0].angle, leftOrright, targetPose[0], targetPose[1],
-               targetPose[2], targetPose[3], targetPose[4], targetPose[5]);
-
+        printf("Pick up Success!\n");
+        exit(666);
 
 #if 0
         int leftOrright = (positions[0].x() <= 0) ? 1 : 0; //NOTE: 简单处理左右手分工
