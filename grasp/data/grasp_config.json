@@ -1,0 +1,4 @@
+{
+  "obj_config": "../deviceObject_config.json",
+  "armActionPoint_config": "../armTaskPoint_config.json"
+}

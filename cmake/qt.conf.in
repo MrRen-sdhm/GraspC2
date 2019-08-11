@@ -1,0 +1,7 @@
+[Paths]
+Prefix=../lib/Qt
+Binaries=bin
+Libraries=lib
+Plugins=@CBTC_ROOT@/3rdparty/qt/plugins
+Imports=imports
+Qml2Imports=qml

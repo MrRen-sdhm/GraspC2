@@ -1,0 +1,25 @@
+{
+  "Application": "Grasp",
+  "objectGroup": [
+    {
+      "objectId": "leftKinematicSolver",
+      "objectKey": "leftKinematicSolver",
+      "factory": "KinematicSolverFactory, Ver 1.0",
+      "type": "KinematicSolver",
+      "config": "GraspData/i3_left.json"
+    },
+    {
+      "objectId": "rightKinematicSolver",
+      "objectKey": "rightKinematicSolver",
+      "factory": "KinematicSolverFactory, Ver 1.0",
+      "type": "KinematicSolver",
+      "config": "GraspData/i3_right.json"
+    },
+    {
+      "objectId": "MasterCamera",
+      "objectKey": "MasterCamera",
+      "factory": "Kinect2CameraFactory, Ver 1.0",
+      "type": "Kinect2Camera"
+    }
+  ]
+}
