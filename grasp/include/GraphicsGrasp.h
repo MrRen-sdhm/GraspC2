@@ -9,6 +9,8 @@
 #include <vision/Calibration/interface/CobotCalibrationData.h>
 #include <vision/Calibration/interface/CalToolkit.h>
 
+#include <pcl/io/pcd_io.h>
+
 // GPD
 //#include <gpd/util/cloud.h>
 //#include <gpd/grasp_detector_pointnet.h>
@@ -60,7 +62,7 @@ class GraphicsGrasp {
 public:
     GraphicsGrasp();
 
-    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> detectGraspYolo(cv::Mat &image);
+    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> detectGraspYolo(cv::Mat &image, bool show);
 
     /**
      * calcRealCoor  输入kinect点云图像抓取姿态，依据手眼标定结果，输出手臂基坐标系下抓取姿态

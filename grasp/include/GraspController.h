@@ -84,7 +84,15 @@ private:
 //    void handControl(uint16_t handType, YinShiDriver::HandCMD _CMD); // FIXME
 
     // 移动指定路径 targetPose[xyzrpy] 单位[m/rad] armId[0为左臂 1为右臂]
-    void movePath(const std::vector<double>& targetPose, double acc, double vel, int armId);
+    void movePath(const std::vector<double>& targetPose, double vel, double acc, int armId);
+
+    void MoveInit(int armId);
+
+    void MoveStep1(int armId);
+
+    void HandOpen(int armId);
+
+    void HandClose(int armId);
 
     //移动到指定点（关节角）
     void moveOnece(const std::vector<double>& targetJoints, ArmRobotMotionType motionType, double acc, double vel, int armId);

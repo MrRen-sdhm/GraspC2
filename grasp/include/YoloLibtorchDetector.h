@@ -18,25 +18,22 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
-#define DEBUG 0
-
-
 class YoloLibtorchDetector {
 public:
     YoloLibtorchDetector(const std::string& config_file, const std::string& weights_file);
 
     // Get the bounding boxes of objects
-    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> getRotRectsAndID(cv::Mat &image);
+    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> getRotRectsAndID(cv::Mat &image, bool show);
 
 private:
     // init the network
     void init(const std::string& config_file, const std::string& weights_file);
 
     // Remove the bounding boxes with low confidence using non-maxima suppression
-    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> postprocess(cv::Mat& frame);
+    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> postprocess(cv::Mat& frame, bool show);
 
     // Draw the predicted bounding box
-    static void drawPred(int classId, float conf, int left, int top, int right, int bottom, cv::Mat& frame,
+        static void drawPred(int classId, float conf, int left, int top, int right, int bottom, cv::Mat& frame,
                   std::vector<std::string> classes);
 
     // yolo相关参数

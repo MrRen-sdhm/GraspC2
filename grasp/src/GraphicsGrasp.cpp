@@ -46,14 +46,14 @@ GraphicsGrasp::GraphicsGrasp()
 //    return grasps;
 //}
 
-std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectGraspYolo(cv::Mat &image)
+std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectGraspYolo(cv::Mat &image, bool show)
 {
     cv::Mat resized;
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotatedRectsAndID;
 
     cv::resize(image, resized, cv::Size(960, 540)); // 缩小图片
 
-    RotatedRectsAndID = yoloDetector->getRotRectsAndID(resized);
+    RotatedRectsAndID = yoloDetector->getRotRectsAndID(resized, show);
 
     printf("[INFO] Detected %zu rotated rects.\n", RotatedRectsAndID.first.size());
 
@@ -242,8 +242,11 @@ void GraphicsGrasp::createLookup(size_t width, size_t height)
 
 void GraphicsGrasp::readCameraInfo(cv::Mat &cameraMatrix)
 {
-    std::vector<double> cameraMatrixVec = {1.0751836750739103e+03, 0., 9.9204536064492709e+02,
-                                           0., 1.0787798824980591e+03, 5.5685612287788467e+02,
+//    std::vector<double> cameraMatrixVec = {1.0751836750739103e+03, 0., 9.9204536064492709e+02,
+//                                           0., 1.0787798824980591e+03, 5.5685612287788467e+02,
+//                                           0., 0., 1.};
+    std::vector<double> cameraMatrixVec = {1.0817351755988568e+03, 0., 9.4219086287825303e+02,
+                                           0., 1.0823131063554199e+03, 5.7383408949778186e+02,
                                            0., 0., 1.};
 
     double *itC = cameraMatrix.ptr<double>(0, 0);

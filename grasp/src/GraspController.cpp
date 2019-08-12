@@ -91,10 +91,10 @@ void GraspController::graspControlThreadFunc() {
         if(!graspControl()) return;
 
         //机器人复位到初始位置
-        resetRobot();
+//        resetRobot();
         auto endTime = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double , std::ratio<1,1> > duration_s(endTime - startTime);
-        std::cout << "解魔方完成! 总体耗时：   " << duration_s.count() << "  秒 "<< std::endl;
+        std::cout << "完成! 总体耗时：   " << duration_s.count() << "  秒 "<< std::endl;
         break;
     }
 }
@@ -103,6 +103,13 @@ void GraspController::graspControlThreadFunc() {
 bool GraspController::graspControl() {
     bool ret = captureImage(-100); // 采集图像
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+    MoveInit(0); // 移动到初始位置
+//    MoveInit(1); // 移动到初始位置
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    HandOpen(0);
+//    HandOpen(1);
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
     int height = _captureImages.frames.at(0).data.rows/2; // 点云高度
     int width = _captureImages.frames.at(0).data.cols/2; // 点云宽度
@@ -117,6 +124,8 @@ bool GraspController::graspControl() {
     _graphicsGrasp->createLookup(cloud->width*2, cloud->height*2); // 创建坐标映射
 
     while (true) {
+        captureImage(-100); // 采集图像
+
         if (!ret) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             std::cout << "graspGrasp wait capture!" << std::endl;
@@ -134,21 +143,30 @@ bool GraspController::graspControl() {
         color = _captureImages.frames.at(0).data.clone();
         depth = _captureImages.frames.at(1).data.clone();
 
-        color = cv::imread("/home/hustac/rgb.jpg");
-        depth = cv::imread("/home/hustac/depth.png", -1);
+//        color = cv::imread("/home/hustac/rgb.jpg");
+//        depth = cv::imread("/home/hustac/depth.png", -1);
 
         _graphicsGrasp->createPointCloud(color, depth, cloud); // 创建点云
 
-        RotRectsAndID = _graphicsGrasp->detectGraspYolo(color); // Yolo积木检测
+        RotRectsAndID = _graphicsGrasp->detectGraspYolo(color, false); // Yolo积木检测
 
 //        writer.writeBinary("/home/hustac/test.pcd", *cloud);
+        cv::imwrite("/home/hustac/test.jpg", color);
+        cv::imwrite("/home/hustac/test.png", depth);
+        exit(0);
+
 //        cloud_viewer(); // 显示点云 FIXME
 
 //        graspDetectGPD(); // TODO:生成抓取姿态
 
         printf("\033[0;31m%s\033[0m\n", "================================= 生成移动任务 ===============================");
 
-        for (size_t i = 0; i < RotRectsAndID.first.size(); i++) {
+        if (RotRectsAndID.first.empty()) {
+            printf("[ERROR] Did not get any rot rects!\n");
+            continue;
+        }
+//        for (size_t i = 0; i < RotRectsAndID.first.size(); i++) {
+        for (size_t i = 0; i < 1; i++) {
 
             int leftOrright = ((int)RotRectsAndID.first[i].center.x < 410) ? 0 : 1; // 简单处理左右手分工
 
@@ -156,15 +174,15 @@ bool GraspController::graspControl() {
 
             // 修改姿态
             if (leftOrright == 1) { // 右臂
-                targetPose[0] += 0.3;
+                targetPose[0] += 0.25;
                 targetPose[3] = 1.54;
                 targetPose[4] = RotRectsAndID.first[i].angle * M_PI / 180.0;
                 targetPose[5] = -1.54;
-            } else if (leftOrright == 0) {
-                targetPose[0] -= 0.3;
+            } else if (leftOrright == 0) { // 左臂
+                targetPose[0] -= 0.23; // 碰:0.23 不碰:0.25
                 targetPose[3] = -1.54;
                 targetPose[4] = RotRectsAndID.first[i].angle * M_PI / 180.0;
-                targetPose[5] = 1.54;
+                targetPose[5] = -1.54;
             }
 
             printf("[INFO] 待抓取物体信息 ID:[%d] Angle:[%f] left/right[%d] Pose:[%f,%f,%f,%f,%f,%f]\n\n",
@@ -172,11 +190,32 @@ bool GraspController::graspControl() {
                    RotRectsAndID.first[i].angle, leftOrright, targetPose[0], targetPose[1],
                    targetPose[2], targetPose[3], targetPose[4], targetPose[5]);
 
-//        movePath(targetPose, 0.1, 0.1, leftOrright); // 移动
+//            MoveStep1(leftOrright);
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+            movePath(targetPose, 0.25, 0.05, leftOrright); // 移动
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+            // 修改姿态
+            if (leftOrright == 1) { // 右臂
+                targetPose[0] -= 0.05;
+            } else if (leftOrright == 0) {
+                targetPose[0] += 0.05;
+            }
+
+            movePath(targetPose, 0.25, 0.05, leftOrright); // 移动
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+            HandClose(leftOrright);
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+            MoveInit(leftOrright); // 移动到初始位置
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
         }
 
-        printf("Pick up Success!\n");
-        exit(666);
+        printf("\033[0;31m%s\033[0m\n\n\n", "================================== 抓取成功 =================================");
+//        exit(666);
 
 #if 0
         int leftOrright = (positions[0].x() <= 0) ? 1 : 0; //NOTE: 简单处理左右手分工
@@ -270,18 +309,20 @@ bool GraspController::isIdle(uint16_t _Dev) {
 }
 
 // FIXME:待测试
-void GraspController::movePath(const std::vector<double>& targetPose, double acc, double vel, int armId){
+void GraspController::movePath(const std::vector<double>& targetPose, double vel, double acc, int armId){
     ErrorInfo _ErrorInfo;
     DeviceStatus _DeviceStatus;
     std::vector<DeviceStatus> _vDeviceStatus;
     uint16_t actionArmId = armId == 0 ? LeftArm : RightArm;
 
+    _DeviceStatus._Pos = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                          0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
     if (armId == 0) { // 左臂
-        for (int i = 0; i < 7; i++) {
+        for (int i = 0; i < 6; i++) {
             _DeviceStatus._Pos[i] = targetPose[i]; // 指定pose
         }
     } else if (armId == 1){ // 右臂
-        for (int i = 0; i < 7; i++) {
+        for (int i = 0; i < 6; i++) {
             _DeviceStatus._Pos[i+6] = targetPose[i]; // 指定pose
         }
     }
@@ -298,6 +339,111 @@ void GraspController::movePath(const std::vector<double>& targetPose, double acc
     _cassemble2Driver->MovePath(_vDeviceStatus, _ErrorInfo);
 
     std::cout << "[MovePath] targetPose:" << targetPose << " acc:" << acc << " vel:" << vel << " id:" << armId << std::endl;
+    std::cout << "_DeviceStatus._Pos: " << _DeviceStatus._Pos << std::endl;
+    std::cout << " _DeviceStatus._Vel: " <<  _DeviceStatus._Vel << std::endl;
+    std::cout << " _DeviceStatus._Acc: " <<  _DeviceStatus._Acc << std::endl;
+
+    while (true) {
+        if (isIdle(armId == 0 ? LeftArm : RightArm)) {
+            std::cout << "[INFO] 移动完成" << std::endl;
+            break;
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    }
+}
+
+void GraspController::MoveInit(int armId) {
+
+    ErrorInfo _ErrorInfo;
+    DeviceStatus _DeviceStatus;
+    std::vector<DeviceStatus> _vDeviceStatus;
+
+    uint16_t actionArmId = armId == 0 ? LeftArm : RightArm;
+
+    // 起始位置
+    _DeviceStatus._Joints = {1.62, 0.360, -1.92, -0.64, 0.026, 0.00,
+                             -1.62, -0.360, 1.92, 0.64, -0.026, 0.00};
+    _DeviceStatus._Vel = {2.0, 2.0};
+    _DeviceStatus._Acc = {0.5, 0.5};
+    _DeviceStatus._ID = actionArmId;
+    _vDeviceStatus.push_back(_DeviceStatus);
+
+    _cassemble2Driver->MovePath(_vDeviceStatus, _ErrorInfo);
+
+    while (true) {
+        if (isIdle(armId == 0 ? LeftArm : RightArm)) {
+            std::cout << "[INFO] 初始位置移动完成" << std::endl;
+            break;
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    HandOpen(actionArmId);
+}
+
+void GraspController::MoveStep1(int armId) {
+
+    ErrorInfo _ErrorInfo;
+    DeviceStatus _DeviceStatus;
+    std::vector<DeviceStatus> _vDeviceStatus;
+
+    uint16_t actionArmId = armId == 0 ? LeftArm : RightArm;
+
+    // 起始位置
+    _DeviceStatus._Joints = {1.62, 0.920, -1.92, -0.64, 0.026, 0.00,
+                             -1.62, 0.920, 1.92, 0.64, -0.026, 0.00};
+    _DeviceStatus._Vel = {0.5, 0.5};
+    _DeviceStatus._Acc = {0.15, 0.15};
+    _DeviceStatus._ID = actionArmId;
+    _vDeviceStatus.push_back(_DeviceStatus);
+
+    _cassemble2Driver->MovePath(_vDeviceStatus, _ErrorInfo);
+
+    while (true) {
+        if (isIdle(armId == 0 ? LeftArm : RightArm)) {
+            std::cout << "[INFO] Step1位置移动完成" << std::endl;
+            break;
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    }
+}
+
+void GraspController::HandOpen(int armId) {
+    ErrorInfo _ErrorInfo;
+    DeviceStatus _DeviceStatus;
+    uint16_t actionArmId = armId == 0 ? LeftHand : RightHand;
+
+    if(_cassemble2Driver) {
+        _DeviceStatus._Pos = {0, 0}; // 开
+        _DeviceStatus._Vel = {1000, 1000};
+        _DeviceStatus._Acc = {1000, 1000};
+        _DeviceStatus._ID = LeftHand;
+        _cassemble2Driver->GraspB(_DeviceStatus, _ErrorInfo);
+//        sleep(1);
+    }
+
+    _cassemble2Driver->GraspB(_DeviceStatus, _ErrorInfo);
+}
+
+void GraspController::HandClose(int armId) {
+    ErrorInfo _ErrorInfo;
+    DeviceStatus _DeviceStatus;
+    uint16_t actionArmId = armId == 0 ? LeftHand : RightHand;
+
+    if(_cassemble2Driver) {
+        _DeviceStatus._Pos = {1000, 1000}; // 关
+        _DeviceStatus._Vel = {1000, 1000};
+        _DeviceStatus._Acc = {1000, 1000};
+        _DeviceStatus._ID = LeftHand;
+        _cassemble2Driver->GraspB(_DeviceStatus, _ErrorInfo);
+        sleep(1);
+    }
+
+    _cassemble2Driver->GraspB(_DeviceStatus, _ErrorInfo);
 }
 
 void GraspController::moveOnece(const std::vector<double>& targetJoints, ArmRobotMotionType motionType, double acc, double vel,

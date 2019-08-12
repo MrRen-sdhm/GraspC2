@@ -6,6 +6,7 @@
 int main(int argc, char** argv)
 {
     std::shared_ptr<GraphicsGrasp> _graphicsGrasp = std::make_shared<GraphicsGrasp>();
+    pcl::PCDWriter writer;
 
     pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZRGBA>());
     cloud->height = 540;
@@ -17,17 +18,27 @@ int main(int argc, char** argv)
 
     cv::Mat color, depth;
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID;
-    std::pair<std::vector<std::vector<double>>, std::vector<int>> PosesAndID;
+    std::vector<double> Pose;
 
-    color = cv::imread("../../../grasp/data/images/rgb.jpg");
-    depth = cv::imread("../../../grasp/data/images/depth.png", -1);
+    color = cv::imread("../../../grasp/data/images/lizhe.jpg");
+    depth = cv::imread("../../../grasp/data/images/lizhe.png", -1);
 
-//    _graphicsGrasp->createPointCloud(color, depth, cloud); // 创建点云
+//    color = cv::imread("/home/hustac/test.jpg");
+//    depth = cv::imread("/home/hustac/test.png", -1);
 
-    RotRectsAndID = _graphicsGrasp->detectGraspYolo(color); // Yolo积木检测
+    _graphicsGrasp->createPointCloud(color, depth, cloud); // 创建点云
 
-//    PosesAndID = _graphicsGrasp->getObjPosesAndID(RotRectsAndID, cloud, 0); // 获取积木中心点及ID
+    RotRectsAndID = _graphicsGrasp->detectGraspYolo(color, true); // Yolo积木检测
 
+    int leftOrright = ((int)RotRectsAndID.first[0].center.x < 410) ? 0 : 1;
 
+    Pose = _graphicsGrasp->getObjPose(RotRectsAndID.first[0], cloud, leftOrright);
+
+    printf("[INFO] 待抓取物体信息 ID:[%d] Angle:[%f] left/right[%d] Pose:[%f,%f,%f,%f,%f,%f]\n\n",
+           RotRectsAndID.second[0],
+           RotRectsAndID.first[0].angle, leftOrright, Pose[0], Pose[1],
+           Pose[2], Pose[3], Pose[4], Pose[5]);
+
+//    writer.writeBinary("/home/hustac/test.pcd", *cloud);
     return 0;
 }

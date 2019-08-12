@@ -36,7 +36,7 @@ void YoloLibtorchDetector::init(const std::string& config_file, const std::strin
     std::cout << "[INFO] Yolo detector initialize done." << endl;
 }
 
-std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloLibtorchDetector::getRotRectsAndID(cv::Mat &image) {
+std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloLibtorchDetector::getRotRectsAndID(cv::Mat &image, bool show) {
 
     cv::Mat resized_image, img_float;
     cv::cvtColor(image, resized_image,  cv::COLOR_RGB2BGR);
@@ -108,18 +108,18 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloLibtorchDetector::
 //            }
 //        }
 
-//        if (DEBUG) cv::imshow("image", image);
-//        if (DEBUG) cv::waitKey(0);
+//        if (show) cv::imshow("image", image);
+//        if (show) cv::waitKey(0);
 //
 //        cv::imwrite("/home/hustac/out-det.jpg", image);
     }
 
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID;
-    RotRectsAndID = postprocess(image); // Remove the bounding boxes with low confidence
+    RotRectsAndID = postprocess(image, show); // Remove the bounding boxes with low confidence
     return RotRectsAndID;
 }
 
-std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloLibtorchDetector::postprocess(cv::Mat& frame)
+std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloLibtorchDetector::postprocess(cv::Mat& frame, bool show)
 {
     std::vector<cv::RotatedRect> RotatedRects;
     std::vector<int> RectsID;
@@ -129,14 +129,14 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloLibtorchDetector::
     {
         cv::Rect box = boxes_[i];
 
-        if (box.height * box.width < 40*40 || box.height * box.width > 100*100) continue; // FIXME: 滤除过大/小的物体
+        if(box.height * box.width < 40*40 || box.height * box.width > 100*100) continue; // FIXME: 滤除过大/小的物体
 
         cv::Mat img_roi = frame.clone()(box);
-        if (DEBUG) cv::imshow("roi", img_roi);
+        if(show) cv::imshow("roi", img_roi);
 
         cv::Mat img_hsv;
         cv::cvtColor(img_roi, img_hsv, CV_BGR2HSV);
-        if (DEBUG) cv::imshow("hsv", img_hsv);
+        if(show) cv::imshow("hsv", img_hsv);
 
         cv::Mat mask = cv::Mat::zeros(img_hsv.rows, img_hsv.cols, CV_8U); // 掩码
 
@@ -153,7 +153,7 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloLibtorchDetector::
             }
         }
 
-        if (DEBUG) cv::imshow("mask", mask);
+        if(show) cv::imshow("mask", mask);
 
         /// 轮廓查找
         std::vector<std::vector<cv::Point> > contours;
@@ -186,7 +186,7 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloLibtorchDetector::
 
         /// 最大轮廓的最小外接矩形
         cv::RotatedRect rect = minAreaRect(contourlist);
-        if (DEBUG) std::cout << "minAreaRect: center:" << rect.center << " angle: " << rect.angle << " size: " << rect.size << std::endl;
+        if(show) std::cout << "minAreaRect: center:" << rect.center << " angle: " << rect.angle << " size: " << rect.size << std::endl;
 
         cv::Point2f P[4];
         rect.points(P);
@@ -195,7 +195,7 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloLibtorchDetector::
         }
         cv::circle(img_roi, rect.center, 1, cv::Scalar(0, 0, 255), 2);
 
-        if (DEBUG) cv::imshow("roi_minAreaRect", img_roi);
+        if(show) cv::imshow("roi_minAreaRect", img_roi);
 
         cv::RotatedRect rect_out(rect); // 获取整张图片下的中心位置及角度
         rect_out.center.x += box.x;
@@ -204,7 +204,7 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloLibtorchDetector::
         RotatedRects.push_back(rect_out); // 存储外接矩形
         RectsID.push_back(classIds_[i]); // 存储外接矩形对应的物体类别
 
-        if (DEBUG) std::cout << "minAreaRectOut: center:" << rect_out.center << " angle: " << rect_out.angle << " size: " << rect_out.size << std::endl;
+        if(show) std::cout << "minAreaRectOut: center:" << rect_out.center << " angle: " << rect_out.angle << " size: " << rect_out.size << std::endl;
 
         // 获取各目标位置
 //        if (classes_[classIds_[idx]] == "bottle" && confidences_[idx] > 0.4) {
@@ -213,10 +213,10 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloLibtorchDetector::
 //            bottleNum ++;
 //        }
 
-        if (DEBUG) drawPred(classIds_[i], confidences_[i], box.x, box.y, box.x + box.width, box.y + box.height, frame_copy, get_classes_vec()); // 画边框
+        if(show) drawPred(classIds_[i], confidences_[i], box.x, box.y, box.x + box.width, box.y + box.height, frame_copy, get_classes_vec()); // 画边框
 
-        if (DEBUG) cv::imshow("result", frame_copy);
-        if (DEBUG) cv::waitKey(0);
+        if(show) cv::imshow("result", frame_copy);
+        if(show) cv::waitKey(0);
     }
 
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RectsAndID {RotatedRects, RectsID};
