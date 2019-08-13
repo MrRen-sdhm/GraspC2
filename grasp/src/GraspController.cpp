@@ -148,12 +148,17 @@ bool GraspController::graspControl() {
 
         _graphicsGrasp->createPointCloud(color, depth, cloud); // 创建点云
 
-        RotRectsAndID = _graphicsGrasp->detectGraspYolo(color, false); // Yolo积木检测
+        printf("\033[0;31m%s\033[0m\n", "=================================== 目标检测 ================================");
+        
+        /// Yolo积木检测
+        RotRectsAndID = _graphicsGrasp->detectGraspYolo(color, 200, false);
+        /// 正方体检测
+        RotRectsAndID = _graphicsGrasp->detectBigCube(color, 200, false);
 
 //        writer.writeBinary("/home/hustac/test.pcd", *cloud);
-        cv::imwrite("/home/hustac/test.jpg", color);
-        cv::imwrite("/home/hustac/test.png", depth);
-        exit(0);
+//        cv::imwrite("/home/hustac/test.jpg", color);
+//        cv::imwrite("/home/hustac/test.png", depth);
+//        exit(0);
 
 //        cloud_viewer(); // 显示点云 FIXME
 
@@ -170,7 +175,10 @@ bool GraspController::graspControl() {
 
             int leftOrright = ((int)RotRectsAndID.first[i].center.x < 410) ? 0 : 1; // 简单处理左右手分工
 
-            std::vector<double> targetPose = _graphicsGrasp->getObjPose(RotRectsAndID.first[i], cloud, leftOrright);
+            /// 获取积木位置
+            std::vector<double> targetPose = _graphicsGrasp->getObjPose(RotRectsAndID.first[i], cloud, 0, 0, leftOrright);
+            /// 获取正方体位置
+//            std::vector<double> targetPose = _graphicsGrasp->getObjPose(RotRectsAndID.first[i], cloud, 1, 0, leftOrright);
 
             // 修改姿态
             if (leftOrright == 1) { // 右臂
@@ -446,106 +454,6 @@ void GraspController::HandClose(int armId) {
     _cassemble2Driver->GraspB(_DeviceStatus, _ErrorInfo);
 }
 
-void GraspController::moveOnece(const std::vector<double>& targetJoints, ArmRobotMotionType motionType, double acc, double vel,
-                                int armId) {
-    std::cout << "移动任务： " << targetJoints << "  ," << acc << "  ," << vel << "  , " << armId << std::endl;
-    DeviceStatus deviceStatus;
-    uint16_t actionArmId = armId == 0 ? LeftArm : RightArm;
-    deviceStatus._ID = actionArmId;
-    deviceStatus._Acc = {acc};
-    deviceStatus._Vel = {vel};
-//        deviceStatus._Acc = {0.1};
-//        deviceStatus._Vel = {0.2};
-    deviceStatus._Joints = targetJoints;
-    ErrorInfo errorInfo;
-
-    if (motionType == ArmRobotMotionType::MoveL) {
-        joint2Cart(deviceStatus._Joints, deviceStatus._Pos, actionArmId);
-        deviceStatus._Joints.clear();
-    }
-
-    std::vector<DeviceStatus> movePath{deviceStatus};
-    _cassemble2Driver->MovePath(movePath, errorInfo);
-
-    while (true) {
-        if (isIdle(armId == 0 ? LeftArm : RightArm)) {
-            std::cout << "移动完成" << std::endl;
-            break;
-        }
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    }
-}
-
-//TODO: 当前不可用
-void GraspController::moveCart(std::vector<double> targetPose, double acc, double vel, int armId) {
-    std::cout << "移动任务（欧拉角）： " << targetPose << "  ," << acc << "  ," << vel << "  , " << armId << std::endl;
-    ErrorInfo errorInfo;
-    DeviceStatus deviceStatus;
-    std::vector<DeviceStatus> vDeviceStatus;
-    uint16_t actionArmId = armId == 0 ? LeftArm : RightArm;
-    deviceStatus._ID = actionArmId;
-    deviceStatus._Acc = {acc};
-    deviceStatus._Vel = {vel};
-    if (armId == 0) {
-        for (int i = 0; i < 7; i++) {
-            deviceStatus._Pos[i] = targetPose[i]; // 指定pose
-        }
-    } else if (armId == 1){
-        for (int i = 0; i < 7; i++) {
-            deviceStatus._Pos[i+6] = targetPose[i]; // 指定pose
-        }
-    }
-
-    vDeviceStatus.push_back(deviceStatus);
-    _cassemble2Driver->MovePath(vDeviceStatus, errorInfo);
-
-    while (true) {
-        if (isIdle(armId == 0 ? LeftArm : RightArm)) {
-            std::cout << "移动完成(moveCart)" << std::endl;
-            break;
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    }
-}
-
-void GraspController::moveQuat(Eigen::Vector3d targetPosition, Eigen::Matrix3d targetQuat, ArmRobotMotionType motionType,
-                               double acc, double vel, int armId) {
-    std::cout << "移动任务： " << targetQuat << "  ," << acc << "  ," << vel << "  , " << armId << std::endl;
-
-    // 旋转矩阵转欧拉角
-    Eigen::Vector3d eulerAngle = targetQuat.matrix().eulerAngles(2,1,0);
-    cout << "yaw(z) pitch(y) roll(x) = " << eulerAngle.transpose() << endl;
-    cout << "eulerAngle: " << eulerAngle.x() << " " << eulerAngle.y() << " " << eulerAngle.z() << endl;
-
-    std::vector<double> targetPose;
-    targetPose[0] = targetPosition.x();
-    targetPose[1] = targetPosition.y();
-    targetPose[2] = targetPosition.z();
-    targetPose[3] = eulerAngle.x();
-    targetPose[4] = eulerAngle.y();
-    targetPose[5] = eulerAngle.z();
-
-    DeviceStatus deviceStatus;
-    uint16_t actionArmId = armId == 0 ? LeftArm : RightArm;
-    deviceStatus._ID = actionArmId;
-    deviceStatus._Acc = {acc};
-    deviceStatus._Vel = {vel};
-    deviceStatus._Pos = targetPose; // 指定pose
-    ErrorInfo errorInfo;
-
-    std::vector<DeviceStatus> movePath{deviceStatus};
-    _cassemble2Driver->MovePath(movePath, errorInfo);
-
-    while (true) {
-        if (isIdle(armId == 0 ? LeftArm : RightArm)) {
-            std::cout << "移动完成(moveQuat)" << std::endl;
-            break;
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    }
-}
-
 int GraspController::cart2Joints(const std::vector<double> &initJoints, const std::vector<double> &targetPos,
                                 std::vector<double> &targetJoints, uint16_t _Dev) {
     ErrorInfo errorInfo;
@@ -623,25 +531,6 @@ std::vector<double> GraspController::getRobotJoints(uint16_t _Dev) {
     }
 }
 
-void GraspController::resetRobot() {
-
-    std::cout << "机器人开始复位！！" << std::endl;
-
-    auto thread1 = std::async(std::launch::async, &GraspController::moveOnece, this, _startHome.at(0),
-                              ArmRobotMotionType::MoveJ, 1.5, 1.5, 0);
-//    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
-    auto thread2 = std::async(std::launch::async, &GraspController::moveOnece, this, _startHome.at(1),
-                              ArmRobotMotionType::MoveJ, 1.5, 1.5, 1);
-
-    thread1.wait();
-    thread2.wait();
-
-//    handControl(LeftHand, YinShiDriver::OpenHand);
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-//    handControl(RightHand, YinShiDriver::OpenHand);
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-}
-
 void GraspController::destoryTaskThreads() {
     if (_graspControlThread.joinable()) {
         _graspControlThread.join();
@@ -657,6 +546,30 @@ void GraspController::destoryTaskThreads() {
         _handControlThread.join();
         std::puts("\n结束第三阶段线程");
     }
+}
+
+// 弧度转角度
+std::vector<float> GraspController::RVec2DVec(const std::vector<float> &RVec) {
+    std::vector<float> DVec;
+    for (size_t i = 0; i < RVec.size(); i++) {
+        DVec[i] = RVec[i] * 180.0f/M_PI;
+    }
+    cout << "Vector in Rad to Vector in Deg:" << endl;
+    cout << "Vector in Rad: " << RVec << endl;
+    cout << "Vector in Deg: " << DVec << endl;
+     return DVec;
+}
+
+// 角度转弧度
+std::vector<float> GraspController::DVec2RVec(const std::vector<float> &DVec) {
+    std::vector<float> RVec;
+    for (size_t i = 0; i < DVec.size(); i++) {
+        RVec[i] = DVec[i] * M_PI/180.0f;
+    }
+    cout << "Vector in Deg to Vector in Rad:" << endl;
+    cout << "Vector in Deg: " << DVec << endl;
+    cout << "Vector in Rad: " << RVec << endl;
+    return RVec;
 }
 
 

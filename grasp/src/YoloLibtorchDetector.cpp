@@ -36,7 +36,7 @@ void YoloLibtorchDetector::init(const std::string& config_file, const std::strin
     std::cout << "[INFO] Yolo detector initialize done." << endl;
 }
 
-std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloLibtorchDetector::getRotRectsAndID(cv::Mat &image, bool show) {
+std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloLibtorchDetector::getRotRectsAndID(cv::Mat &image, int thresh, bool show) {
 
     cv::Mat resized_image, img_float;
     cv::cvtColor(image, resized_image,  cv::COLOR_RGB2BGR);
@@ -115,11 +115,11 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloLibtorchDetector::
     }
 
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID;
-    RotRectsAndID = postprocess(image, show); // Remove the bounding boxes with low confidence
+    RotRectsAndID = postprocess(image, thresh, show); // Remove the bounding boxes with low confidence
     return RotRectsAndID;
 }
 
-std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloLibtorchDetector::postprocess(cv::Mat& frame, bool show)
+std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloLibtorchDetector::postprocess(cv::Mat& frame, int thresh, bool show)
 {
     std::vector<cv::RotatedRect> RotatedRects;
     std::vector<int> RectsID;
@@ -138,8 +138,9 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloLibtorchDetector::
         cv::cvtColor(img_roi, img_hsv, CV_BGR2HSV);
         if(show) cv::imshow("hsv", img_hsv);
 
+        /// HSV阈值分割获取掩码
+        int thresh_v_high = thresh; // V通道阈值
         cv::Mat mask = cv::Mat::zeros(img_hsv.rows, img_hsv.cols, CV_8U); // 掩码
-
         for(int r = 0; r < img_hsv.rows; ++r)
         {
             auto *itM = mask.ptr<uint8_t>(r);
@@ -147,64 +148,22 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloLibtorchDetector::
 
             for(int c = 0; c < img_hsv.cols; ++c, ++itM, ++itH)
             {
-                if (itH->val[0] < 35 && itH->val[2] > 100) {
+                if (itH->val[0] < 35 && itH->val[2] > thresh_v_high) { /// HSV阈值分割 顶部>255 旁边>120
                     *itM = 255;
                 }
             }
         }
-
         if(show) cv::imshow("mask", mask);
 
-        /// 轮廓查找
-        std::vector<std::vector<cv::Point> > contours;
-        std::vector<cv::Vec4i> hierarchy;
-        findContours(mask, contours, hierarchy, cv::RETR_TREE, cv:: CHAIN_APPROX_SIMPLE);
-
-        if (contours.empty()) continue;
-
-        int index = 0;
-        for (; index >= 0; index = hierarchy[index][0]) {
-            drawContours(img_roi, contours, index, cv::Scalar(0, 255, 255), 1, 8, hierarchy);
-        }
-//        cv::imshow("roi_Contours", img_roi);
-
-        /// 查找最大轮廓
-        double max_area = 0;
-        int maxAreaIdx = 0;
-        for (int index = (int)contours.size() - 1; index >= 0; index--)
-        {
-            double tmp_area = fabs(contourArea(contours[index]));
-            if (tmp_area > max_area)
-            {
-                max_area = tmp_area;
-                maxAreaIdx = index; //记录最大轮廓的索引号
-            }
+        /// 计算最小外接矩形
+        cv::RotatedRect rotRect;
+        if (calRotatedRect(img_roi, mask, box, rotRect, show)) {
+            RotatedRects.push_back(rotRect); // 存储外接矩形
+            RectsID.push_back(classIds_[i]); // 存储外接矩形对应的物体类别
         }
 
-        std::vector<cv::Point> contourlist; // 轮廓列表
-        contourlist = contours[maxAreaIdx]; // 最大轮廓
-
-        /// 最大轮廓的最小外接矩形
-        cv::RotatedRect rect = minAreaRect(contourlist);
-        if(show) std::cout << "minAreaRect: center:" << rect.center << " angle: " << rect.angle << " size: " << rect.size << std::endl;
-
-        cv::Point2f P[4];
-        rect.points(P);
-        for(int j=0; j <= 3; j++) {
-            line(img_roi, P[j], P[(j + 1) % 4], cv::Scalar(0, 255 ,0), 2);
-        }
-        cv::circle(img_roi, rect.center, 1, cv::Scalar(0, 0, 255), 2);
-
-        if(show) cv::imshow("roi_minAreaRect", img_roi);
-
-        cv::RotatedRect rect_out(rect); // 获取整张图片下的中心位置及角度
-        rect_out.center.x += box.x;
-        rect_out.center.y += box.y;
-
-        RotatedRects.push_back(rect_out); // 存储外接矩形
-        RectsID.push_back(classIds_[i]); // 存储外接矩形对应的物体类别
-
-        if(show) std::cout << "minAreaRectOut: center:" << rect_out.center << " angle: " << rect_out.angle << " size: " << rect_out.size << std::endl;
+        if(show) std::cout << "minAreaRectOut: center:" << rotRect.center << " angle: " <<
+                                                                rotRect.angle << " size: " << rotRect.size << std::endl;
 
         // 获取各目标位置
 //        if (classes_[classIds_[idx]] == "bottle" && confidences_[idx] > 0.4) {
@@ -213,7 +172,8 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloLibtorchDetector::
 //            bottleNum ++;
 //        }
 
-        if(show) drawPred(classIds_[i], confidences_[i], box.x, box.y, box.x + box.width, box.y + box.height, frame_copy, get_classes_vec()); // 画边框
+        if(show) drawPred(classIds_[i], confidences_[i], box.x, box.y, box.x + box.width, box.y + box.height,
+                frame_copy, get_classes_vec()); // 画边框
 
         if(show) cv::imshow("result", frame_copy);
         if(show) cv::waitKey(0);
@@ -222,6 +182,81 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloLibtorchDetector::
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RectsAndID {RotatedRects, RectsID};
 
     return RectsAndID;
+}
+
+bool YoloLibtorchDetector::calRotatedRect(cv::Mat img_roi, cv::Mat mask, cv::Rect box, cv::RotatedRect &rotRect, bool show){
+    /// 轮廓查找
+    std::vector<std::vector<cv::Point> > contours;
+    std::vector<cv::Vec4i> hierarchy;
+    findContours(mask, contours, hierarchy, cv::RETR_TREE, cv:: CHAIN_APPROX_SIMPLE);
+
+    if (contours.empty()) return false;
+
+    int index = 0;
+    for (; index >= 0; index = hierarchy[index][0]) {
+        drawContours(img_roi, contours, index, cv::Scalar(0, 255, 255), 1, 8, hierarchy);
+    }
+    //        cv::imshow("roi_Contours", img_roi);
+
+    /// 查找最大轮廓
+    double max_area = 0;
+    int maxAreaIdx = 0;
+    for (int index = (int)contours.size() - 1; index >= 0; index--)
+    {
+        double tmp_area = fabs(contourArea(contours[index]));
+    if (tmp_area > max_area)
+    {
+        max_area = tmp_area;
+        maxAreaIdx = index; //记录最大轮廓的索引号
+        }
+    }
+
+    std::vector<cv::Point> contourlist; // 轮廓列表
+    contourlist = contours[maxAreaIdx]; // 最大轮廓
+
+    /// 最大轮廓的最小外接矩形
+    rotRect = minAreaRect(contourlist);
+    if(show) std::cout << "minAreaRect: center:" << rotRect.center << " angle: " << rotRect.angle <<
+                                                                                " size: " << rotRect.size << std::endl;
+
+    // 外接矩形的四个角点
+    cv::Point2f P[4];
+    rotRect.points(P);
+    for(int j=0; j <= 3; j++) {
+        line(img_roi, P[j], P[(j + 1) % 4], cv::Scalar(0, 255 ,0), 2);
+    }
+    cv::circle(img_roi, P[0], 1, cv::Scalar(0, 255, 255), 2);
+    cv::circle(img_roi, P[2], 1, cv::Scalar(0, 255, 255), 2);
+    cv::circle(img_roi, P[1], 1, cv::Scalar(0, 0, 0), 2);
+    cv::circle(img_roi, P[3], 1, cv::Scalar(0, 0, 0), 2);
+
+    cv::circle(img_roi, rotRect.center, 1, cv::Scalar(0, 0, 255), 2);
+
+    cout << "四个角点: " << P[0] << endl << P[1] << endl << P[2] << endl << P[3] << endl << endl;
+
+    cv::Point2f P1;
+    P1.x = P[0].x + (P[2].x - P[0].x)/4;
+    P1.y = P[0].y + (P[2].y - P[0].y)/4;
+    cv::circle(img_roi, P1, 1, cv::Scalar(255, 0, 0), 2);
+
+    cv::Point2f P2;
+    P2.x = P[0].x + (P[2].x - P[0].x)*3/4;
+    P2.y = P[0].y + (P[2].y - P[0].y)*3/4;
+    cv::circle(img_roi, P2, 1, cv::Scalar(0, 255, 0), 2);
+
+    // 重新计算中心点
+    cv::Point2f P0;
+    P0.x = P1.x + (P2.x - P1.x)/2;
+    P0.y = P1.y + (P2.y - P1.y)/2;
+    cv::circle(img_roi, P0, 1, cv::Scalar(0, 0, 255), 2);
+
+    if(show) cv::imshow("roi_minAreaRect", img_roi);
+
+    // 获取整张图片下的中心位置及角度
+    rotRect.center.x += box.x;
+    rotRect.center.y += box.y;
+
+    return true;
 }
 
 // Draw the predicted bounding box

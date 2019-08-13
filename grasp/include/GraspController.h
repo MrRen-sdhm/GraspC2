@@ -55,6 +55,12 @@ public:
      */
     void stop();
 
+    // 弧度转角度
+    std::vector<float> RVec2DVec(const std::vector<float> &RVec);
+
+    // 角度转弧度
+    std::vector<float> DVec2RVec(const std::vector<float> &DVec);
+
 private:
 
     //结束所有的工作线程

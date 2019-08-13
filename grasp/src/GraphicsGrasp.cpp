@@ -17,7 +17,7 @@ using namespace cv;
 namespace {
     std::string gpd_cfg_file = "../../../Grasp/Sources/pointnet_params.cfg";
     std::string yolo_config_filename = "../../../grasp/data/yolov3-voc.cfg";
-    std::string yolo_weights_filename ="../../../grasp/data/yolov3-voc_23000.weights";
+    std::string yolo_weights_filename ="../../../grasp/data/yolov3-voc_36000.weights";
 }
 
 GraphicsGrasp::GraphicsGrasp()
@@ -46,18 +46,79 @@ GraphicsGrasp::GraphicsGrasp()
 //    return grasps;
 //}
 
-std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectGraspYolo(cv::Mat &image, bool show)
+std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectGraspYolo(cv::Mat &image, int thresh, bool show)
 {
     cv::Mat resized;
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotatedRectsAndID;
 
     cv::resize(image, resized, cv::Size(960, 540)); // 缩小图片
 
-    RotatedRectsAndID = yoloDetector->getRotRectsAndID(resized, show);
+    RotatedRectsAndID = yoloDetector->getRotRectsAndID(resized, thresh, show);
 
     printf("[INFO] Detected %zu rotated rects.\n", RotatedRectsAndID.first.size());
 
     return RotatedRectsAndID;
+}
+
+std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectBigCube(cv::Mat &image, int thresh, bool show)
+{
+    cv::Mat frame;
+    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotatedRectsAndID;
+
+    cv::resize(image, frame, cv::Size(960, 540)); // 缩小图片
+
+    std::vector<cv::RotatedRect> RotatedRects;
+    std::vector<int> RectsID;
+    cv::Mat frame_copy = frame.clone();
+
+    cv::Mat img_hsv;
+    cv::cvtColor(frame, img_hsv, CV_BGR2HSV);
+    if(show) cv::imshow("hsv", img_hsv);
+
+    /// HSV阈值分割获取掩码
+    int thresh_v_high = thresh; // V通道阈值
+    cv::Point LU(100, 240); // 桌面区域左上角点 (x, y)=(col, row)
+    cv::Point RD(730, 540); // 桌面区域右下角点 (x, y)=(col, row)
+    cv::Mat mask = cv::Mat::zeros(img_hsv.rows, img_hsv.cols, CV_8U); // 掩码
+    for(int r = 0; r < img_hsv.rows; ++r)
+    {
+        auto *itM = mask.ptr<uint8_t>(r);
+        const cv::Vec3b *itH = img_hsv.ptr<cv::Vec3b>(r);
+
+        for(int c = 0; c < img_hsv.cols; ++c, ++itM, ++itH)
+        {
+            if (r > LU.y && c > LU.x && c < RD.x) { /// 限定像素范围
+                if (itH->val[0] < 35 && itH->val[2] > thresh_v_high) { /// HSV阈值分割 顶部>255 旁边>120
+                    *itM = 255;
+                }
+            }
+        }
+    }
+    if(show) cv::imshow("mask", mask);
+
+    /// 计算最小外接矩形
+    cv::RotatedRect rotRect;
+    cv::Rect box;
+    box.x = 0;
+    box.y = 0;
+    if (yoloDetector->calRotatedRect(frame, mask, box, rotRect, show)) {
+        RotatedRects.push_back(rotRect); // 存储外接矩形
+        RectsID.push_back(6); // 存储外接矩形对应的物体类别
+    }
+
+    if(show) std::cout << "minAreaRectOut: center:" << rotRect.center << " angle: " <<
+                       rotRect.angle << " size: " << rotRect.size << std::endl;
+
+    rectangle(frame_copy, LU, RD, cv::Scalar(255, 178, 50), 1);
+
+    if(show) cv::imshow("main area", frame_copy);
+    if(show) cv::waitKey(0);
+
+    printf("[INFO] Detected big cube.\n");
+
+    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RectsAndID {RotatedRects, RectsID};
+
+    return RectsAndID;
 }
 
 std::vector<double> GraphicsGrasp::calcRealCoor(const Eigen::Matrix3d& rotMatrix,
@@ -127,37 +188,72 @@ std::vector<double> GraphicsGrasp::calcRealCoor(const Eigen::Matrix3d& rotMatrix
 }
 
 std::vector<double> GraphicsGrasp::getObjPose(const cv::RotatedRect& RotRect,
-                                    const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr& cloud, int leftOrRight) {
-    // 获取外接矩形实际位置
-    int row = (int)RotRect.center.y;
-    int col = (int)RotRect.center.x;
-    float center_x = cloud->points[row * cloud->width + col].x;
-    float center_y = cloud->points[row * cloud->width + col].y;
-    float center_z = cloud->points[row * cloud->width + col].z;
+            const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr& cloud, int juggleOrCude, int longOrshort, int leftOrRight) {
+    int row, col;
+    float center_x, center_y, center_z;
     float center_angle = RotRect.angle;
 
-    // 中心点附近寻找可用深度
-    for (int i = -5; i <= 5; i++) {
-        if (center_z > 0.1 && center_z < 2.0) break;
-        for (int j = -5; j <= 5; j++) {
-            center_z = cloud->points[(row+i) * cloud->width + (col+j)].z;
-            printf("Find center z: %f\n", center_z);
-            if (center_z > 0.1 && center_z < 2.0) break;
+    if (juggleOrCude == 0) { // 积木
+        row = (int)RotRect.center.y;
+        col = (int)RotRect.center.x;
+        getPointLoc(row, col, center_x, center_y, center_z, cloud);
+
+    } else if (juggleOrCude == 1) { // 正方体
+        float x, y, z; // 不准确的中心位置
+        float x1, y1, z1; // 实际位置1
+        float x2, y2, z2; // 实际位置2
+        // 获取外接矩形四个角点
+        cv::Point2f P[4];
+        RotRect.points(P);
+
+        cv::Point2f P1; // 对角线1/4处点
+        P1.x = P[0].x + (P[2].x - P[0].x)/4;
+        P1.y = P[0].y + (P[2].y - P[0].y)/4;
+
+        cv::Point2f P2; // 对角线3/4处点
+        P2.x = P[0].x + (P[2].x - P[0].x)*3/4;
+        P2.y = P[0].y + (P[2].y - P[0].y)*3/4;
+
+        // 获取实际位置1
+        row = (int)P1.y;
+        col = (int)P1.x;
+        getPointLoc(row, col, x1, y1, z1, cloud);
+        // 获取实际位置2
+        row = (int)P2.y;
+        col = (int)P2.x;
+        getPointLoc(row, col, x2, y2, z2, cloud);
+
+        // 获取不准确的中心位置
+        row = (int)RotRect.center.y;
+        col = (int)RotRect.center.x;
+        getPointLoc(row, col, x, y, z, cloud);
+
+        printf("[INFO] Big cube raw Center[%f %f %f]\n", x, y, z);
+        printf("[INFO] Big cube correct P1[%f %f %f] P2[%f %f %f]\n", x1, y1, z1, x2, y2, z2);
+
+        center_x = x1 + (x2 - x1)/2;
+        center_y = y1 + (y2 - y1)/2;
+        center_z = (z1 + z2)/2;
+    }
+
+    printf("[INFO] Center angle raw: %f\n", center_angle);
+
+    // angle为与width边的夹角, width > height 时angle为与长边夹角, 角度为顺时针方向, 一般为负, 即逆时针旋转, 基准轴为水平向右
+    if (longOrshort == 0) { /// 转换为与长边夹角
+        if (RotRect.size.width < RotRect.size.height) {
+            center_angle -= 90; // 转换为长边的角度
+        }
+    } else if (longOrshort == 1) { /// 转换为与短边夹角
+        if (RotRect.size.width > RotRect.size.height) {
+            center_angle -= 90; // 转换为长边的角度
         }
     }
 
-    if (center_z < 0.1 || center_z > 2.0) {
-        printf("row: %d col: %d center_z: %f\n", row, col, center_z);
-        throw std::runtime_error("\033[0;31mCenter point's depth is not valid!\033[0m\n");
-    }
-
-    // angle为与width边的夹角, width > height 时angle为与长边夹角
-    if (RotRect.size.width < RotRect.size.height) {
-        center_angle += 90; // 转换为长边的角度
-    }
+    printf("[INFO] Center angle correct: %f\n", center_angle);
 
     printf("[INFO] Center [row:%d col:%d] x:%f y:%f z:%f Angle:%f\n", row, col, center_x, center_y, center_z, center_angle);
 
+    /// 物体姿态转换到机器人坐标系下
     Eigen::Vector3d c2o_ea(0, 0, 0); // YPR, 先绕z轴yaw, 再绕y轴pitch, 最后绕x轴roll
     Eigen::Quaterniond c2o_quat;
     c2o_quat = Eigen::AngleAxisd(c2o_ea[0], Eigen::Vector3d::UnitZ()) *
@@ -174,6 +270,61 @@ std::vector<double> GraphicsGrasp::getObjPose(const cv::RotatedRect& RotRect,
            b2oXYZRPY[2], b2oXYZRPY[3], b2oXYZRPY[4], b2oXYZRPY[5]);
 
     return b2oXYZRPY;
+}
+
+void GraphicsGrasp::getPointLoc(int row, int col, float &loc_x, float &loc_y, float &loc_z,
+                                                        const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr& cloud) {
+    // 获取外接矩形实际位置
+    loc_x = cloud->points[row * cloud->width + col].x;
+    loc_y = cloud->points[row * cloud->width + col].y;
+    loc_z = cloud->points[row * cloud->width + col].z;
+
+    /// 深度值不可用, 附近寻找可用深度
+    if (loc_z < 0.1 || loc_z > 2.0) {
+        const int size = 5; // 深度寻找范围
+        // 右下侧
+        for (int i = 0; i <= size; i++) {
+            if (loc_z > 0.1 && loc_z < 2.0) break;
+            for (int j = 0; j <= size; j++) {
+                loc_z = cloud->points[(row + i) * cloud->width + (col + j)].z;
+                printf("Find loc z: %f\n", loc_z);
+                if (loc_z > 0.1 && loc_z < 2.0) break;
+            }
+        }
+        // 左下侧
+        for (int i = 0; i <= size; i++) {
+            if (loc_z > 0.1 && loc_z < 2.0) break;
+            for (int j = 0; j >= -size; j--) {
+                loc_z = cloud->points[(row + i) * cloud->width + (col + j)].z;
+                printf("Find loc z: %f\n", loc_z);
+                if (loc_z > 0.1 && loc_z < 2.0) break;
+            }
+        }
+        // 右上侧
+        for (int i = 0; i >= -size; i--) {
+            if (loc_z > 0.1 && loc_z < 2.0) break;
+            for (int j = 0; j <= size; j++) {
+                loc_z = cloud->points[(row + i) * cloud->width + (col + j)].z;
+                printf("Find loc z: %f\n", loc_z);
+                if (loc_z > 0.1 && loc_z < 2.0) break;
+            }
+        }
+        // 左上侧
+        for (int i = 0; i >= -size; i--) {
+            if (loc_z > 0.1 && loc_z < 2.0) break;
+            for (int j = 0; j >= -size; j--) {
+                loc_z = cloud->points[(row + i) * cloud->width + (col + j)].z;
+                printf("Find loc z: %f\n", loc_z);
+                if (loc_z > 0.1 && loc_z < 2.0) break;
+            }
+        }
+    }
+
+    /// 未寻找到可用深度
+    if (loc_z < 0.1 || loc_z > 2.0) {
+        printf("row: %d col: %d loc_z: %f\n", row, col, loc_z);
+        throw std::runtime_error("\033[0;31mCenter point's depth is not valid!\033[0m\n");
+    }
 }
 
 void GraphicsGrasp::createPointCloud(cv::Mat &color, cv::Mat &depth, const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr& cloud) {

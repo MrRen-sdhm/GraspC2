@@ -62,7 +62,9 @@ class GraphicsGrasp {
 public:
     GraphicsGrasp();
 
-    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> detectGraspYolo(cv::Mat &image, bool show);
+    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> detectGraspYolo(cv::Mat &image, int thresh, bool show);
+
+    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> detectBigCube(cv::Mat &image, int thresh, bool show);
 
     /**
      * calcRealCoor  输入kinect点云图像抓取姿态，依据手眼标定结果，输出手臂基坐标系下抓取姿态
@@ -73,9 +75,12 @@ public:
      */
     static std::vector<double> calcRealCoor(const Eigen::Matrix3d& rotMatrix, const Eigen::Vector3d& translation, int leftOrRight);
 
-    /// 获取物体姿态和ID
-    std::vector<double> getObjPose(const cv::RotatedRect& RotRect,
-                                                  const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr& cloud, int leftOrRight);
+    /// 获取物体姿态和ID longOrshort: 0为长边 leftOrRight: 0为左臂
+    static std::vector<double> getObjPose(const cv::RotatedRect& RotRect,
+          const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr& cloud, int juggleOrCude, int longOrshortint, int leftOrRight);
+
+    static void getPointLoc (int row, int col, float &loc_x, float &loc_y, float &loc_z,
+                             const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr& cloud);
 
     /**
      * \brief Detect grasp poses in a point cloud.

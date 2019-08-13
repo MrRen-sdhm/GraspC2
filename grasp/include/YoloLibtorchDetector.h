@@ -23,14 +23,16 @@ public:
     YoloLibtorchDetector(const std::string& config_file, const std::string& weights_file);
 
     // Get the bounding boxes of objects
-    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> getRotRectsAndID(cv::Mat &image, bool show);
+    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> getRotRectsAndID(cv::Mat &image, int thresh, bool show);
+
+    bool calRotatedRect(cv::Mat img_roi, cv::Mat mask, cv::Rect box, cv::RotatedRect &rotRect, bool show);
 
 private:
     // init the network
     void init(const std::string& config_file, const std::string& weights_file);
 
     // Remove the bounding boxes with low confidence using non-maxima suppression
-    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> postprocess(cv::Mat& frame, bool show);
+    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> postprocess(cv::Mat& frame, int thresh, bool show);
 
     // Draw the predicted bounding box
         static void drawPred(int classId, float conf, int left, int top, int right, int bottom, cv::Mat& frame,
@@ -47,8 +49,8 @@ private:
     float nmsThreshold_ = 0.4;  // Non-maximum suppression threshold
     int image_size_ = 416;  // Size of network's input image 416 608
     float box_scale_ = 1.2; // 边框尺寸缩放
-    static const int classes_num_ = 4;
-    std::string classes_[classes_num_]={"cube", "cubiod", "hexagonal", "triangular"};
+    static const int classes_num_ = 5;
+    std::string classes_[classes_num_]={"cube", "cubiod", "sphere", "triangular", "cylinder"};
 
     std::vector<std::string> get_classes_vec() {
         std::vector<std::string> classes_vec(classes_, classes_ + classes_num_);

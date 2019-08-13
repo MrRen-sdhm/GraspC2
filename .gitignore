@@ -19,6 +19,7 @@ build/
 *.h5
 *.zip
 *.tar
+*.gz
 *.weights
 
 # Executables
