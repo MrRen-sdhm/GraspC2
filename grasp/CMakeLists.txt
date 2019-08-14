@@ -7,7 +7,7 @@ file(GLOB SOURCES
         )
 
 add_executable(Grasp ${SOURCES} Grasp.cpp)
-add_executable(Graphic src/GraphicsGrasp.cpp src/YoloLibtorchDetector.cpp src/Darknet.cpp Graphic.cpp)
+add_executable(Graphic src/GraphicsGrasp.cpp src/YoloDetector.cpp src/Darknet.cpp Graphic.cpp)
 
 target_link_libraries(Grasp
         ${CobotCore_LIBRARIES}

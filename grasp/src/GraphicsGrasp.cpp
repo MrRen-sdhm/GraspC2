@@ -17,7 +17,7 @@ using namespace cv;
 namespace {
     std::string gpd_cfg_file = "../../../Grasp/Sources/pointnet_params.cfg";
     std::string yolo_config_filename = "../../../grasp/data/yolov3-voc.cfg";
-    std::string yolo_weights_filename ="../../../grasp/data/yolov3-voc_36000.weights";
+    std::string yolo_weights_filename ="../../../grasp/data/yolov3-voc_900.weights";
 }
 
 GraphicsGrasp::GraphicsGrasp()
@@ -26,7 +26,7 @@ GraphicsGrasp::GraphicsGrasp()
 //    grasp_detector_ = new gpd::GraspDetectorPointNet(gpd_cfg_file); // FIXME
 
     /// yolo 初始化
-    yoloDetector = new YoloLibtorchDetector(yolo_config_filename, yolo_weights_filename);
+    yoloDetector = new YoloDetector(yolo_config_filename, yolo_weights_filename);
 }
 
 // FIXME
@@ -88,37 +88,92 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectB
         for(int c = 0; c < img_hsv.cols; ++c, ++itM, ++itH)
         {
             if (r > LU.y && c > LU.x && c < RD.x) { /// 限定像素范围
-                if (itH->val[0] < 35 && itH->val[2] > thresh_v_high) { /// HSV阈值分割 顶部>255 旁边>120
+                if (itH->val[0] < 40 && itH->val[2] > thresh_v_high) { /// HSV阈值分割 顶部>255 旁边>120
                     *itM = 255;
                 }
             }
         }
     }
+
     if(show) cv::imshow("mask", mask);
 
+    std::vector<cv::RotatedRect> rotRects;
+    cv::Rect box(cv::Point(0, 0), cv::Size(0, 0));
+
     /// 计算最小外接矩形
-    cv::RotatedRect rotRect;
-    cv::Rect box;
-    box.x = 0;
-    box.y = 0;
-    if (yoloDetector->calRotatedRect(frame, mask, box, rotRect, show)) {
-        RotatedRects.push_back(rotRect); // 存储外接矩形
-        RectsID.push_back(6); // 存储外接矩形对应的物体类别
+    if (yoloDetector->calRotatedRect(frame, mask, box, rotRects, 1, show)) {
+        for (const auto & rotRect : rotRects) {
+            RotatedRects.push_back(rotRect); // 存储外接矩形
+            RectsID.push_back(6); // 存储外接矩形对应的物体类别
+        }
+
+        printf("[INFO] Detected %zu big cube.\n", rotRects.size());
     }
 
-    if(show) std::cout << "minAreaRectOut: center:" << rotRect.center << " angle: " <<
-                       rotRect.angle << " size: " << rotRect.size << std::endl;
+    if(show) {
+        for (size_t i = 0; i < RotatedRects.size(); i++) {
+            std::cout << "[INFO] minAreaRectOut" << i << " center:" << RotatedRects[i].center << " angle: " <<
+                                                RotatedRects[i].angle << " size: " << RotatedRects[i].size << std::endl;
+        }
+    }
 
     rectangle(frame_copy, LU, RD, cv::Scalar(255, 178, 50), 1);
 
     if(show) cv::imshow("main area", frame_copy);
     if(show) cv::waitKey(0);
 
-    printf("[INFO] Detected big cube.\n");
-
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RectsAndID {RotatedRects, RectsID};
 
     return RectsAndID;
+}
+
+std::vector<int> GraphicsGrasp::findAimObjLR(std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID,
+                                             int LeftOrRightThresh, int RowOrCol) {
+    std::vector<int> LIndices, RIndices;
+    std::vector<float> LCenters, RCenters;
+    for (size_t i = 0; i < RotRectsAndID.first.size(); i++) {
+        float center_x = RotRectsAndID.first[i].center.x;
+        float center_y = RotRectsAndID.first[i].center.y;
+        if (center_x < LeftOrRightThresh) { // 先区分左右
+            if (RowOrCol == 1) { // 存储列值, 用于找横向最值
+                printf("LeftCenter[%zu]: %f\n", i, center_x);
+                LCenters.push_back(center_x);
+            } else if (RowOrCol == 0) { // 存储行值, 用于找纵向最值
+                printf("LeftCenter[%zu]: %f\n", i, center_y);
+                LCenters.push_back(center_y);
+            }
+            LIndices.push_back(i);
+        } else {
+            if (RowOrCol == 1) { // 存储列值, 用于找横向最值
+                printf("RightCenter[%zu]: %f\n", i, center_x);
+                RCenters.push_back(center_x);
+            } else if (RowOrCol == 0) { // 存储行值, 用于找纵向最值
+                printf("RightCenter[%zu]: %f\n", i, center_y);
+                RCenters.push_back(center_y);
+            }
+            RIndices.push_back(i);
+        }
+    }
+
+    cout << "leftCenters: " << LCenters << endl;
+    cout << "LIndices: " << LIndices << endl;
+    cout << "rightCenters: " << RCenters << endl;
+    cout << "RIndices: " << RIndices << endl;
+
+    // 左侧找最小的
+    auto min_LCenter = std::min_element(LCenters.begin(), LCenters.end());
+    auto distanceL = std::distance(LCenters.begin(), min_LCenter);
+    int positionRawL = LIndices[distanceL]; // 在RotRectsAndID中的位置
+    std::cout << "LeftCenter Min element is " << *min_LCenter<< " at position " << positionRawL << std::endl;
+
+    // 右侧找最大的
+    auto max_RCenter = std::max_element(RCenters.begin(), RCenters.end());
+    auto distanceR = std::distance(RCenters.begin(), max_RCenter);
+    int positionRawR = RIndices[distanceR]; // 在RotRectsAndID中的位置
+    std::cout << "RightCenter Max element is " << *max_RCenter<< " at position " << positionRawR << std::endl;
+
+    std::vector<int> AimObjIndicesLR = {positionRawL, positionRawR};
+    return AimObjIndicesLR;
 }
 
 std::vector<double> GraphicsGrasp::calcRealCoor(const Eigen::Matrix3d& rotMatrix,
@@ -142,6 +197,12 @@ std::vector<double> GraphicsGrasp::calcRealCoor(const Eigen::Matrix3d& rotMatrix
                             2.1497733612005401e-01,
                             9.4954804224349210e-01,
                             -2.2834898823134014e-01}; // 外参rotation_vector：[Angle, AxisX, AxisY, AxisZ] 单位rad
+
+        // 0517 新
+//        handEyeAxisAngle = {1.61536e+00,
+//                            1.79356e-01,
+//                            9.63044e-01,
+//                            -2.00943e-01};
     } else if (leftOrRight == 1) { // 右臂
         handEyeAxisAngle = {1.5758424729195439e+00,
                             2.2768667381355578e-01,
@@ -153,6 +214,8 @@ std::vector<double> GraphicsGrasp::calcRealCoor(const Eigen::Matrix3d& rotMatrix
     std::vector<double> handEyeTranslation;
     if (leftOrRight == 0) { // 左臂
         handEyeTranslation = {-1.9141241908073422e+02, -9.3745023012161283e+01, -3.1072884798049927e+02}; // 外参translation_vector：[x, y ,z] 单位mm
+        // 0517 新
+//        handEyeTranslation = {-1.779e+02, -17.829e+01, -3.22e+02};
     } else if (leftOrRight == 1) { // 右臂
         handEyeTranslation = {1.8252700567245483e+02, -8.7103784084320054e+01, -1.2175752222537994e+02}; // 外参translation_vector：[x, y ,z] 单位mm
     }
@@ -187,18 +250,18 @@ std::vector<double> GraphicsGrasp::calcRealCoor(const Eigen::Matrix3d& rotMatrix
     return b2oXYZRPY;
 }
 
-std::vector<double> GraphicsGrasp::getObjPose(const cv::RotatedRect& RotRect,
-            const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr& cloud, int juggleOrCude, int longOrshort, int leftOrRight) {
-    int row, col;
-    float center_x, center_y, center_z;
+std::vector<double> GraphicsGrasp::getObjPose(cv::RotatedRect& RotRect,
+            const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr& cloud, int juggleOrCube, int longOrshort, int leftOrRight) {
+    int row = 0, col = 0;
+    float center_x = 0, center_y = 0, center_z = 0;
     float center_angle = RotRect.angle;
 
-    if (juggleOrCude == 0) { // 积木
+    if (juggleOrCube == 0) { // 积木
         row = (int)RotRect.center.y;
         col = (int)RotRect.center.x;
         getPointLoc(row, col, center_x, center_y, center_z, cloud);
 
-    } else if (juggleOrCude == 1) { // 正方体
+    } else if (juggleOrCube == 1) { // 正方体
         float x, y, z; // 不准确的中心位置
         float x1, y1, z1; // 实际位置1
         float x2, y2, z2; // 实际位置2
@@ -207,12 +270,12 @@ std::vector<double> GraphicsGrasp::getObjPose(const cv::RotatedRect& RotRect,
         RotRect.points(P);
 
         cv::Point2f P1; // 对角线1/4处点
-        P1.x = P[0].x + (P[2].x - P[0].x)/4;
-        P1.y = P[0].y + (P[2].y - P[0].y)/4;
+        P1.x = P[0].x + (P[2].x - P[0].x)/8;
+        P1.y = P[0].y + (P[2].y - P[0].y)/8;
 
         cv::Point2f P2; // 对角线3/4处点
-        P2.x = P[0].x + (P[2].x - P[0].x)*3/4;
-        P2.y = P[0].y + (P[2].y - P[0].y)*3/4;
+        P2.x = P[0].x + (P[2].x - P[0].x)*7/8;
+        P2.y = P[0].y + (P[2].y - P[0].y)*7/8;
 
         // 获取实际位置1
         row = (int)P1.y;
@@ -251,7 +314,13 @@ std::vector<double> GraphicsGrasp::getObjPose(const cv::RotatedRect& RotRect,
 
     printf("[INFO] Center angle correct: %f\n", center_angle);
 
-    printf("[INFO] Center [row:%d col:%d] x:%f y:%f z:%f Angle:%f\n", row, col, center_x, center_y, center_z, center_angle);
+    // 归一化到[-90, 90], 走最近的角度
+    if (center_angle < -90) center_angle += 180;
+    else if (center_angle > 90) center_angle -= 180;
+
+    printf("[INFO] Center angle short: %f\n", center_angle);
+
+    printf("[INFO] Center(相机坐标系) [row:%d col:%d] x:%f y:%f z:%f Angle:%f\n", row, col, center_x, center_y, center_z, center_angle);
 
     /// 物体姿态转换到机器人坐标系下
     Eigen::Vector3d c2o_ea(0, 0, 0); // YPR, 先绕z轴yaw, 再绕y轴pitch, 最后绕x轴roll
@@ -267,6 +336,20 @@ std::vector<double> GraphicsGrasp::getObjPose(const cv::RotatedRect& RotRect,
     b2oXYZRPY = calcRealCoor(c2o_rot, c2o_trans, leftOrRight); // 计算基坐标到物体转换关系
 
     printf("[INFO] 基坐标系->物体: [%f,%f,%f,%f,%f,%f]\n", b2oXYZRPY[0], b2oXYZRPY[1],
+           b2oXYZRPY[2], b2oXYZRPY[3], b2oXYZRPY[4], b2oXYZRPY[5]);
+
+    /// 修改姿态
+    if (leftOrRight == 0) {
+        b2oXYZRPY[3] = -1.54;
+        b2oXYZRPY[4] = D2R(center_angle + 0);  // 左臂正值容易到达, 加180度 FIXME:当前未处理
+        b2oXYZRPY[5] = 1.54;
+    } else if (leftOrRight == 1) {
+        b2oXYZRPY[3] = 1.54;
+        b2oXYZRPY[4] = D2R(center_angle);  // // 右臂负值更容易到达, 不处理
+        b2oXYZRPY[5] = -1.54;
+    }
+
+    printf("[INFO] 基坐标系->物体(修改姿态): [%f,%f,%f,%f,%f,%f]\n", b2oXYZRPY[0], b2oXYZRPY[1],
            b2oXYZRPY[2], b2oXYZRPY[3], b2oXYZRPY[4], b2oXYZRPY[5]);
 
     return b2oXYZRPY;

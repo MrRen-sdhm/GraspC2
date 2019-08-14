@@ -5,11 +5,6 @@ using namespace cv;
 
 GraspController::GraspController() {
     _graphicsGrasp = std::make_shared<GraphicsGrasp>(); // 创建视觉支持
-    // FIXME：获取相机参数
-//    _graphicsGrasp->Setup("../../../data/caliresult/3DCameraInCailResult.xml",
-//               "../../../data/caliresult/3DCameraExCailResult_left.xml",
-//               "../../../data/caliresult/3DCameraExCailResult_right.xml");
-
     _graspControlStart = false;
     _currentArmAndPointId = {0, 1};
 }
@@ -84,44 +79,39 @@ void GraspController::graspControlThreadFunc() {
         auto startTime = std::chrono::high_resolution_clock::now();
         std::cout << "开始时间： " << std::chrono::system_clock::to_time_t(startTime) << std::endl;
 
-        //机器人复位 FIXME：线程问题
-//        resetRobot();
+        // 异步抓取
+//        if(!graspControl()) return;
 
-        //TODO 抓取
-        if(!graspControl()) return;
+        // 同步抓取
+        if(!graspControlDual()) return;
 
-        //机器人复位到初始位置
-//        resetRobot();
         auto endTime = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double , std::ratio<1,1> > duration_s(endTime - startTime);
         std::cout << "完成! 总体耗时：   " << duration_s.count() << "  秒 "<< std::endl;
+
+        /// 退出
+        destoryTaskThreads();
+        stop();
+
         break;
     }
 }
-
 
 bool GraspController::graspControl() {
     bool ret = captureImage(-100); // 采集图像
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
-    MoveInit(0); // 移动到初始位置
+    /// 初始位置
+//    MoveInit(0); // 移动到初始位置 FIXME:待删除
 //    MoveInit(1); // 移动到初始位置
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    moveSync(InitPose, 2.0, 0.5);// 同步移动到初始位置
+
+    /// 手抓张开
     HandOpen(0);
 //    HandOpen(1);
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-    int height = _captureImages.frames.at(0).data.rows/2; // 点云高度
-    int width = _captureImages.frames.at(0).data.cols/2; // 点云宽度
-    printf("[INFO] image height:%d width:%d\n", height, width);
-
-    cloud = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>());
-    cloud->height = height;
-    cloud->width = width;
-    cloud->is_dense = false;
-    cloud->points.resize(cloud->height * cloud->width);
-
-    _graphicsGrasp->createLookup(cloud->width*2, cloud->height*2); // 创建坐标映射
+    /// 点云初始化
+    cloudInit();
 
     while (true) {
         captureImage(-100); // 采集图像
@@ -149,11 +139,11 @@ bool GraspController::graspControl() {
         _graphicsGrasp->createPointCloud(color, depth, cloud); // 创建点云
 
         printf("\033[0;31m%s\033[0m\n", "=================================== 目标检测 ================================");
-        
+
         /// Yolo积木检测
         RotRectsAndID = _graphicsGrasp->detectGraspYolo(color, 200, false);
         /// 正方体检测
-        RotRectsAndID = _graphicsGrasp->detectBigCube(color, 200, false);
+//        RotRectsAndID = _graphicsGrasp->detectBigCube(color, 200, false);
 
 //        writer.writeBinary("/home/hustac/test.pcd", *cloud);
 //        cv::imwrite("/home/hustac/test.jpg", color);
@@ -180,46 +170,50 @@ bool GraspController::graspControl() {
             /// 获取正方体位置
 //            std::vector<double> targetPose = _graphicsGrasp->getObjPose(RotRectsAndID.first[i], cloud, 1, 0, leftOrright);
 
-            // 修改姿态
+            /// 修改姿态, 移动到物体上方
             if (leftOrright == 1) { // 右臂
-                targetPose[0] += 0.25;
+                targetPose[0] += 0.30;
                 targetPose[3] = 1.54;
                 targetPose[4] = RotRectsAndID.first[i].angle * M_PI / 180.0;
                 targetPose[5] = -1.54;
             } else if (leftOrright == 0) { // 左臂
-                targetPose[0] -= 0.23; // 碰:0.23 不碰:0.25
+                targetPose[0] -= 0.30; // 碰:0.23 不碰:0.25 0.3(大爪子)
                 targetPose[3] = -1.54;
                 targetPose[4] = RotRectsAndID.first[i].angle * M_PI / 180.0;
                 targetPose[5] = -1.54;
             }
+            movePath(targetPose, 0.25, 0.05, leftOrright);
 
             printf("[INFO] 待抓取物体信息 ID:[%d] Angle:[%f] left/right[%d] Pose:[%f,%f,%f,%f,%f,%f]\n\n",
                    RotRectsAndID.second[i],
                    RotRectsAndID.first[i].angle, leftOrright, targetPose[0], targetPose[1],
                    targetPose[2], targetPose[3], targetPose[4], targetPose[5]);
 
-//            MoveStep1(leftOrright);
-            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+//            MoveMiddle(leftOrright); /// 移动到抓取中间点(待删除)
+//            movePath(MiddlePose, 0.5, 0.05, leftOrright); /// 移动到抓取中间点(NEW)
 
-            movePath(targetPose, 0.25, 0.05, leftOrright); // 移动
-            std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-            // 修改姿态
+            /// 修改姿态, 手臂垂直下降
             if (leftOrright == 1) { // 右臂
                 targetPose[0] -= 0.05;
             } else if (leftOrright == 0) {
                 targetPose[0] += 0.05;
             }
+            movePath(targetPose, 0.25, 0.05, leftOrright);
 
-            movePath(targetPose, 0.25, 0.05, leftOrright); // 移动
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            /// 修改姿态, 手臂垂直抬起
+            if (leftOrright == 1) { // 右臂
+                targetPose[0] += 0.05;
+            } else if (leftOrright == 0) {
+                targetPose[0] -= 0.05;
+            }
+            movePath(targetPose, 0.25, 0.05, leftOrright);
 
-            HandClose(leftOrright);
-            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            HandClose(leftOrright); /// 抓取物体
+
+//            movePath(Pose2, 0.05, 0.05, leftOrright); // 移动到平躺初始位置
 
             MoveInit(leftOrright); // 移动到初始位置
-
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
         }
 
         printf("\033[0;31m%s\033[0m\n\n\n", "================================== 抓取成功 =================================");
@@ -291,6 +285,143 @@ bool GraspController::graspControl() {
     }
 }
 
+bool GraspController::graspControlDual() {
+    bool ret = captureImage(-100); // 采集图像
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+    /// 初始位置
+//    moveSync(InitPose, 2.0, 0.5); // 同步移动到初始位置
+
+    /// 手抓张开
+    HandOpen(0);
+    HandOpen(1);
+
+    /// 点云初始化
+    cloudInit();
+
+    while (true) {
+        captureImage(-100); // 采集图像
+
+        if (!ret) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            std::cout << "graspGrasp wait capture!" << std::endl;
+            continue;
+        }
+
+        if (_captureImages.frames.empty())
+            return false;
+        if (_captureImages.frames.at(0).data.empty())
+            return false;
+
+        printf("\033[0;31m%s\033[0m\n", "================================== 获取点云 =================================");
+
+        // 创建点云使用1920*1080像素
+        color = _captureImages.frames.at(0).data.clone();
+        depth = _captureImages.frames.at(1).data.clone();
+
+//        color = cv::imread("/home/hustac/rgb.jpg");
+//        depth = cv::imread("/home/hustac/depth.png", -1);
+
+        color = cv::imread("../../../grasp/data/images/cube1.jpg");
+        depth = cv::imread("../../../grasp/data/images/cube1.png", -1);
+
+        _graphicsGrasp->createPointCloud(color, depth, cloud); // 创建点云
+
+        printf("\033[0;31m%s\033[0m\n", "=================================== 目标检测 ================================");
+
+        const int juggleOrCube = 0; /// 0为积木, 1为立方体
+
+        if (juggleOrCube == 0) {
+            /// Yolo积木检测
+            RotRectsAndID = _graphicsGrasp->detectGraspYolo(color, 200, false);
+        } else if (juggleOrCube == 1) {
+            /// 正方体检测
+            RotRectsAndID = _graphicsGrasp->detectBigCube(color, 200, false);
+        }
+
+//        writer.writeBinary("/home/hustac/test.pcd", *cloud);
+//        cv::imwrite("/home/hustac/test.jpg", color);
+//        cv::imwrite("/home/hustac/test.png", depth);
+//        exit(0);
+
+        printf("\033[0;31m%s\033[0m\n", "================================= 生成移动任务 ===============================");
+
+        if (RotRectsAndID.first.empty()) {
+            printf("[ERROR] Did not get any rot rects!\n");
+            continue;
+        }
+
+        // 确定两侧待抓取物体索引
+        std::vector<int> AimObjIndicesLR = _graphicsGrasp->findAimObjLR(RotRectsAndID, LeftOrRightThresh, 0);
+
+        int leftOrRight;
+
+        vector<double> targetPose; // 双臂目标位置
+
+        /// 获取目标位置(左臂)
+        leftOrRight = 0;
+        cv::RotatedRect RotatedRectL = RotRectsAndID.first[AimObjIndicesLR[0]];
+        std::vector<double> targetPoseL = _graphicsGrasp->getObjPose(RotatedRectL, cloud, juggleOrCube, 0, leftOrRight);
+
+        // 移动到物体上方
+        targetPoseL[0] -= 0.30; // 碰:0.23 不碰:0.25 0.3(大爪子)
+
+        /// 获取目标位置(右臂)
+        leftOrRight = 1;
+        cv::RotatedRect RotatedRectR = RotRectsAndID.first[AimObjIndicesLR[1]];
+        std::vector<double> targetPoseR = _graphicsGrasp->getObjPose(RotatedRectR, cloud, juggleOrCube, 0, leftOrRight);
+
+        // 移动到物体上方
+        targetPoseR[0] += 0.30; // 碰:0.23 不碰:0.25 0.3(大爪子)
+
+        mergeTargetPoseLR(targetPoseL, targetPoseR, targetPose);
+
+        cout << "[INFO] targetPoseL: " << targetPoseL << endl;
+        cout << "[INFO] targetPoseR: " << targetPoseR << endl;
+        cout << "[INFO] targetPose: " << targetPose << endl;
+
+//        moveSync(targetPose, 0.25, 0.05); /// 双臂同时移动到物体上方
+
+        printf("[INFO] 左臂待抓取物体信息 ID:[%d] Angle:[%f] Pose:[%f,%f,%f,%f,%f,%f]\n\n",
+               RotRectsAndID.second[AimObjIndicesLR[0]], R2D(targetPoseL[4]), targetPoseL[0], targetPoseL[1],
+               targetPoseL[2], targetPoseL[3], targetPoseL[4], targetPoseL[5]);
+
+        printf("[INFO] 右臂待抓取物体信息 ID:[%d] Angle:[%f] Pose:[%f,%f,%f,%f,%f,%f]\n\n",
+               RotRectsAndID.second[AimObjIndicesLR[1]], R2D(targetPoseR[4]), targetPoseR[0], targetPoseR[1],
+               targetPoseR[2], targetPoseR[3], targetPoseR[4], targetPoseR[5]);
+
+//            moveSync(MiddlePose, 0.5, 0.05); /// 移动到抓取中间点(NEW)
+
+        /// 修改姿态, 手臂垂直下降
+        targetPoseR[0] -= 0.05; // 右臂
+        targetPoseL[0] += 0.05; // 左臂
+
+        mergeTargetPoseLR(targetPoseL, targetPoseR, targetPose);
+
+        moveSync(targetPose, 0.25, 0.05);
+
+        /// 修改姿态, 手臂垂直抬起
+        targetPoseR[0] += 0.05; // 右臂
+        targetPoseL[0] -= 0.05; // 左臂
+
+        mergeTargetPoseLR(targetPoseL, targetPoseR, targetPose);
+
+        moveSync(targetPose, 0.25, 0.05);
+
+        /// 手抓闭合
+        HandClose(0); /// 抓取物体
+        HandClose(1); /// 抓取物体
+
+//            movePath(Pose2, 0.05, 0.05, leftOrRight); // 移动到平躺初始位置
+
+        moveSync(InitPose, 2.0, 0.5); // 同步移动到初始位置
+
+
+        printf("\033[0;31m%s\033[0m\n\n\n", "================================== 抓取成功 =================================");
+//        exit(666);
+    }
+}
+
 bool GraspController::captureImage(int exposureTime) {
     ErrorInfo errorInfo;
     _captureImages.frames.clear();
@@ -316,15 +447,17 @@ bool GraspController::isIdle(uint16_t _Dev) {
     }
 }
 
-// FIXME:待测试
 void GraspController::movePath(const std::vector<double>& targetPose, double vel, double acc, int armId){
     ErrorInfo _ErrorInfo;
-    DeviceStatus _DeviceStatus;
+    DeviceStatus _DeviceStatus = DeviceStatus();
     std::vector<DeviceStatus> _vDeviceStatus;
     uint16_t actionArmId = armId == 0 ? LeftArm : RightArm;
 
-    _DeviceStatus._Pos = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+    _DeviceStatus._Pos = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, // FIXME 待删除
                           0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+
+    _DeviceStatus._Pos.insert(_DeviceStatus._Pos.begin(), 12, 0.0);// 清空
+
     if (armId == 0) { // 左臂
         for (int i = 0; i < 6; i++) {
             _DeviceStatus._Pos[i] = targetPose[i]; // 指定pose
@@ -340,31 +473,56 @@ void GraspController::movePath(const std::vector<double>& targetPose, double vel
     _DeviceStatus._ID = actionArmId;
     _vDeviceStatus.push_back(_DeviceStatus);
 
-    //        _DeviceStatus._Pos = {0.0, -0.213, 0.782, 1.57, 0, 0,
-    //                              0.0, -0.213, 0.782, 1.57, 0, 0};
-    //        _vDeviceStatus.push_back(_DeviceStatus);
-
     _cassemble2Driver->MovePath(_vDeviceStatus, _ErrorInfo);
 
     std::cout << "[MovePath] targetPose:" << targetPose << " acc:" << acc << " vel:" << vel << " id:" << armId << std::endl;
-    std::cout << "_DeviceStatus._Pos: " << _DeviceStatus._Pos << std::endl;
-    std::cout << " _DeviceStatus._Vel: " <<  _DeviceStatus._Vel << std::endl;
-    std::cout << " _DeviceStatus._Acc: " <<  _DeviceStatus._Acc << std::endl;
+    std::cout << "[MovePath] DeviceStatus.Pos: " << _DeviceStatus._Pos << std::endl;
+    std::cout << "[MovePath] DeviceStatus.Vel: " <<  _DeviceStatus._Vel << "  DeviceStatus.Acc: " <<  _DeviceStatus._Acc << std::endl;
 
     while (true) {
         if (isIdle(armId == 0 ? LeftArm : RightArm)) {
-            std::cout << "[INFO] 移动完成" << std::endl;
+            std::cout << "[INFO] MovePath 移动完成." << std::endl;
             break;
         }
+//        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    }
+}
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+void GraspController::moveSync(const std::vector<double>& targetPose, double vel, double acc){
+    ErrorInfo _ErrorInfo;
+    DeviceStatus _DeviceStatus = DeviceStatus();
+    std::vector<DeviceStatus> _vDeviceStatus;
+
+    _DeviceStatus._Pos.insert(_DeviceStatus._Pos.begin(), 12, 0.0); // 赋初值
+
+    for (int i = 0; i < 12; i++) {
+        _DeviceStatus._Pos[i] = targetPose[i]; // 指定pose
+    }
+
+    _DeviceStatus._Vel = {vel, vel};
+    _DeviceStatus._Acc = {acc, acc};
+    _DeviceStatus._ID = LeftArm | RightArm;
+    _vDeviceStatus.push_back(_DeviceStatus);
+
+    _cassemble2Driver->MovePath(_vDeviceStatus, _ErrorInfo);
+
+    std::cout << "[MoveSync] targetPose:" << targetPose << " acc:" << acc << " vel:" << vel << std::endl;
+    std::cout << "[MoveSync] DeviceStatus.Pos: " << _DeviceStatus._Pos << std::endl;
+    std::cout << "[MoveSync] DeviceStatus.Vel: " <<  _DeviceStatus._Vel << "  DeviceStatus.Acc: " <<  _DeviceStatus._Acc << std::endl;
+
+    while (true) {
+        if (isIdle(LeftArm) && isIdle(RightArm)) {
+            std::cout << "[INFO] MoveSync 移动完成." << std::endl;
+            break;
+        }
+//        std::this_thread::sleep_for(std::chrono::milliseconds(200));
     }
 }
 
 void GraspController::MoveInit(int armId) {
 
     ErrorInfo _ErrorInfo;
-    DeviceStatus _DeviceStatus;
+    DeviceStatus _DeviceStatus{};
     std::vector<DeviceStatus> _vDeviceStatus;
 
     uint16_t actionArmId = armId == 0 ? LeftArm : RightArm;
@@ -381,7 +539,7 @@ void GraspController::MoveInit(int armId) {
 
     while (true) {
         if (isIdle(armId == 0 ? LeftArm : RightArm)) {
-            std::cout << "[INFO] 初始位置移动完成" << std::endl;
+            std::cout << "[INFO] 初始位置移动完成." << std::endl;
             break;
         }
 
@@ -392,10 +550,11 @@ void GraspController::MoveInit(int armId) {
     HandOpen(actionArmId);
 }
 
-void GraspController::MoveStep1(int armId) {
+// FIXME (待删除)
+void GraspController::MoveMiddle(int armId) {
 
     ErrorInfo _ErrorInfo;
-    DeviceStatus _DeviceStatus;
+    DeviceStatus _DeviceStatus{};
     std::vector<DeviceStatus> _vDeviceStatus;
 
     uint16_t actionArmId = armId == 0 ? LeftArm : RightArm;
@@ -412,7 +571,7 @@ void GraspController::MoveStep1(int armId) {
 
     while (true) {
         if (isIdle(armId == 0 ? LeftArm : RightArm)) {
-            std::cout << "[INFO] Step1位置移动完成" << std::endl;
+            std::cout << "[INFO] Middle 位置移动完成" << std::endl;
             break;
         }
 
@@ -422,14 +581,14 @@ void GraspController::MoveStep1(int armId) {
 
 void GraspController::HandOpen(int armId) {
     ErrorInfo _ErrorInfo;
-    DeviceStatus _DeviceStatus;
+    DeviceStatus _DeviceStatus{};
     uint16_t actionArmId = armId == 0 ? LeftHand : RightHand;
 
     if(_cassemble2Driver) {
         _DeviceStatus._Pos = {0, 0}; // 开
         _DeviceStatus._Vel = {1000, 1000};
         _DeviceStatus._Acc = {1000, 1000};
-        _DeviceStatus._ID = LeftHand;
+        _DeviceStatus._ID = actionArmId;
         _cassemble2Driver->GraspB(_DeviceStatus, _ErrorInfo);
 //        sleep(1);
     }
@@ -439,16 +598,16 @@ void GraspController::HandOpen(int armId) {
 
 void GraspController::HandClose(int armId) {
     ErrorInfo _ErrorInfo;
-    DeviceStatus _DeviceStatus;
+    DeviceStatus _DeviceStatus{};
     uint16_t actionArmId = armId == 0 ? LeftHand : RightHand;
 
     if(_cassemble2Driver) {
         _DeviceStatus._Pos = {1000, 1000}; // 关
         _DeviceStatus._Vel = {1000, 1000};
         _DeviceStatus._Acc = {1000, 1000};
-        _DeviceStatus._ID = LeftHand;
+        _DeviceStatus._ID = actionArmId;
         _cassemble2Driver->GraspB(_DeviceStatus, _ErrorInfo);
-        sleep(1);
+//        sleep(1);
     }
 
     _cassemble2Driver->GraspB(_DeviceStatus, _ErrorInfo);
@@ -516,6 +675,13 @@ int GraspController::joint2Cart(const std::vector<double> &targetJoints, std::ve
 
 }
 
+void GraspController::mergeTargetPoseLR(std::vector<double> &targetPoseL, std::vector<double> &targetPoseR,
+                                                                                    std::vector<double> &targetPose) {
+    targetPose.clear();
+    targetPose.insert(targetPose.end(),targetPoseL.begin(),targetPoseL.end());
+    targetPose.insert(targetPose.end(), targetPoseR.begin(), targetPoseR.end());
+}
+
 std::vector<double> GraspController::getRobotJoints(uint16_t _Dev) {
     ErrorInfo errorInfo;
     DeviceStatus deviceStatus;
@@ -529,6 +695,20 @@ std::vector<double> GraspController::getRobotJoints(uint16_t _Dev) {
     } else {
         return deviceStatus._Joints;
     }
+}
+
+void GraspController::cloudInit() {
+    int height = _captureImages.frames.at(0).data.rows/2; // 点云高度
+    int width = _captureImages.frames.at(0).data.cols/2; // 点云宽度
+    printf("[INFO] image height:%d width:%d\n", height, width);
+
+    cloud = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>());
+    cloud->height = height;
+    cloud->width = width;
+    cloud->is_dense = false;
+    cloud->points.resize(cloud->height * cloud->width);
+
+    _graphicsGrasp->createLookup(cloud->width*2, cloud->height*2); // 创建坐标映射
 }
 
 void GraspController::destoryTaskThreads() {
@@ -548,7 +728,6 @@ void GraspController::destoryTaskThreads() {
     }
 }
 
-// 弧度转角度
 std::vector<float> GraspController::RVec2DVec(const std::vector<float> &RVec) {
     std::vector<float> DVec;
     for (size_t i = 0; i < RVec.size(); i++) {
@@ -560,7 +739,6 @@ std::vector<float> GraspController::RVec2DVec(const std::vector<float> &RVec) {
      return DVec;
 }
 
-// 角度转弧度
 std::vector<float> GraspController::DVec2RVec(const std::vector<float> &DVec) {
     std::vector<float> RVec;
     for (size_t i = 0; i < DVec.size(); i++) {

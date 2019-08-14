@@ -69,6 +69,10 @@ private:
     //机器人复位
     void resetRobot();
 
+    // 合并左右臂目标位置
+    void mergeTargetPoseLR(std::vector<double> &targetPoseL, std::vector<double> &targetPoseR,
+                                                                                std::vector<double> &targetPose);
+
     //获取机器人的关节角
     std::vector<double> getRobotJoints( uint16_t _Dev);
 
@@ -87,14 +91,20 @@ private:
     //抓取
     bool graspControl();
 
+    // 双臂同时抓取
+    bool graspControlDual();
+
 //    void handControl(uint16_t handType, YinShiDriver::HandCMD _CMD); // FIXME
 
     // 移动指定路径 targetPose[xyzrpy] 单位[m/rad] armId[0为左臂 1为右臂]
     void movePath(const std::vector<double>& targetPose, double vel, double acc, int armId);
 
+    // 双臂同时移动到目标位置, 均到达目标位置后退出
+    void moveSync(const std::vector<double>& targetPose, double vel, double acc);
+
     void MoveInit(int armId);
 
-    void MoveStep1(int armId);
+    void MoveMiddle(int armId);
 
     void HandOpen(int armId);
 
@@ -112,6 +122,9 @@ private:
 
     //魔方控制线程
     void graspControlThreadFunc();
+
+    // 点云初始化
+    void cloudInit();
 
     //手爪控制线程
     void handControlThreadFunc();
@@ -190,6 +203,27 @@ private:
         }
         visualizer->close();
     }
+
+private:
+    /// 抓取相关参数
+    const int LeftOrRightThresh = 420; // 左右臂分工阈值, 列数小于阈值为左臂管辖
+
+    /// 垂直抓取相关位置
+    // 起始位置
+    const std::vector<double> InitPose = {1.62, 0.360, -1.92, -0.64, 0.026, 0.00,
+                                         -1.62, -0.360, 1.92, 0.64, -0.026, 0.00};
+    // 中间位置
+    const std::vector<double> MiddlePose = {1.62, 0.920, -1.92, -0.64, 0.026, 0.00,
+                                            -1.62, 0.920, 1.92, 0.64, -0.026, 0.00};
+
+    /// 水平抓取相关位置
+    // 平着
+    const std::vector<double> Pose1 = {0.10, -0.50, -0.10, -3.14, 0.00, 0.00,
+                                       0.341, -0.354, 0.030, -1.54, -0.95, 1.54};
+
+    // 平着初始位置
+    const std::vector<double> Pose2 = {0.215, -0.369, 0.428, -2.009, -1.215, -1.09,
+                                       0.341, -0.354, 0.030, -1.54, -0.95, 1.54};
 };
 
 

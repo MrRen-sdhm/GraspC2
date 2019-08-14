@@ -16,7 +16,10 @@
 //#include <gpd/grasp_detector_pointnet.h>
 
 // YOLO
-#include "YoloLibtorchDetector.h"
+#include "YoloDetector.h"
+
+#define R2D(rad) ((rad) * 180.0f/(float)M_PI)
+#define D2R(deg) ((deg) * (float)M_PI/180.0f)
 
 namespace {
     //矩阵转化为笛卡尔坐标
@@ -75,9 +78,13 @@ public:
      */
     static std::vector<double> calcRealCoor(const Eigen::Matrix3d& rotMatrix, const Eigen::Vector3d& translation, int leftOrRight);
 
+    /// 寻找左右侧的目标物体, 左侧找最左/上边的, 右侧找最右/下边的, RowOrCol: 1为左右最值 0为上下最值
+    std::vector<int> findAimObjLR(std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID,
+                                                                                int LeftOrRightThresh, int RowOrCol);
+
     /// 获取物体姿态和ID longOrshort: 0为长边 leftOrRight: 0为左臂
-    static std::vector<double> getObjPose(const cv::RotatedRect& RotRect,
-          const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr& cloud, int juggleOrCude, int longOrshortint, int leftOrRight);
+    static std::vector<double> getObjPose(cv::RotatedRect& RotRect,
+          const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr& cloud, int juggleOrCube, int longOrshortint, int leftOrRight);
 
     static void getPointLoc (int row, int col, float &loc_x, float &loc_y, float &loc_z,
                              const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr& cloud);
@@ -101,7 +108,7 @@ private:
 //    gpd::util::Cloud* cloud_camera_; ///< stores point cloud with (optional) camera information and surface normals
 
     /// YOLO
-    YoloLibtorchDetector* yoloDetector;
+    YoloDetector* yoloDetector;
 
     // 点云生成相关参数
     cv::Mat lookupX, lookupY; // 像素坐标转换到相机坐标
