@@ -91,17 +91,20 @@ private:
     // 双臂同时抓取
     bool graspControlDual();
 
+    // 移动指定位姿 armId: 0-左臂 1-右臂 2-双臂
+    void MovePose(const std::vector<double>& targetPose, double vel, double acc, int armId);
+
+    // 移动指定关节角 armId: 0-左臂 1-右臂 2-双臂
+    void MoveJoints(const std::vector<double>& targetJoints, double vel, double acc, int armId);
+
     // 移动指定路径 targetPose[xyzrpy] 单位[m/rad] armId[0为左臂 1为右臂]
     void MovePath(const std::vector<double>& targetPose, double vel, double acc, int armId);
 
     // 双臂同时移动到目标位置, 均到达目标位置后退出
     void MoveSync(const std::vector<double>& targetPose, double vel, double acc);
 
-    // 同步移动关节角
-    void MoveJoints(const std::vector<double>& targetJoints, double vel, double acc);
-
     // 在当前位置基础上调整Joint6角度
-    void MoveJoint6(double targetJoint6L, double targetJoint6R);
+    void MoveJoint6(double targetJoint6L, double targetJoint6R, int armId);
 
     void MoveInit();
 
@@ -194,10 +197,12 @@ private:
 
 private:
     /// 抓取相关参数
-    const double Vel_Lv1 = 1.5;
-    const double Acc_Lv1 = 0.5;
+    const double Vel_Lv1 = 0.5;
+    const double Acc_Lv1 = 0.05;
+    const double Vel_Lv2 = 1.5;
+    const double Acc_Lv2 = 0.5;
 
-    const int LeftOrRightThresh = 420; // 左右臂分工阈值, 列数小于阈值为左臂管辖
+    const float LeftOrRightThresh = 420.0; // 左右臂分工阈值, 列数小于阈值为左臂管辖
 
     /// 垂直抓取相关位置
     // 起始位置
@@ -206,6 +211,10 @@ private:
     // 中间位置
     const std::vector<double> MiddlePose = {1.62, 0.920, -1.92, -0.64, 0.026, 0.00,
                                             -1.62, 0.920, 1.92, 0.64, -0.026, 0.00};
+
+    // 放置位置
+    const std::vector<double> EndJoints = {D2R(97.402), D2R(93.306), D2R(-69.662), D2R(19.228), D2R(9.333), D2R(-169.197),
+                                           D2R(-92.52), D2R(-104.37), D2R(12.86), D2R(-40.35), D2R(-4.63), D2R(157.63)};
 
     /// 水平抓取相关位置
     // 平着

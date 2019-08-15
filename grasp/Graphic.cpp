@@ -68,22 +68,34 @@ int main(int argc, char** argv)
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID, RotRectsAndIDTop;
     std::vector<double> Pose;
 
-    color = cv::imread("../../../grasp/data/images/cube1.jpg");
-    depth = cv::imread("../../../grasp/data/images/cube1.png", -1);
+//    color = cv::imread("../../../grasp/data/images/ball5.jpg");
+//    depth = cv::imread("../../../grasp/data/images/cube1.png", -1);
 
-//    color = cv::imread("/home/hustac/test.jpg");
-//    depth = cv::imread("/home/hustac/test.png", -1);
+    color = cv::imread("/home/hustac/test.jpg");
+    depth = cv::imread("/home/hustac/test.png", -1);
 
     _graphicsGrasp->createPointCloud(color, depth, cloud); // 创建点云
 
-    const int juggleOrCube = 1; /// 0为积木, 1为立方体
+    const int juggleOrCube = 0; /// 0为积木, 1为立方体
 
     if (juggleOrCube == 0) {
         /// Yolo积木检测
-        RotRectsAndID = _graphicsGrasp->detectGraspYolo(color, 200, false);
+        RotRectsAndID = _graphicsGrasp->detectGraspYolo(color, 200, true);
     } else if (juggleOrCube == 1) {
         /// 正方体检测
-        RotRectsAndID = _graphicsGrasp->detectBigCube(color, 200, true);
+//        RotRectsAndID = _graphicsGrasp->detectBigObj(color, 200, true); // 检测立方体, 高阈值
+
+//        RotRectsAndID = _graphicsGrasp->detectBigObj(color, 100, true); // 检测大球, 低阈值
+
+        cv::RotatedRect BigBallRect, BigCubeRect;
+
+        if(_graphicsGrasp->detectBigBall(color, BigBallRect)) {
+            RotRectsAndID.first.push_back(BigBallRect);
+        }
+
+//        if(_graphicsGrasp->detectBigCube(color, BigCubeRect)) {
+//            RotRectsAndID.first.push_back(BigCubeRect);
+//        }
     }
 
     // 显示所有目标框
@@ -92,10 +104,10 @@ int main(int argc, char** argv)
 
         Pose = _graphicsGrasp->getObjPose(RotRectsAndID.first[i], cloud, juggleOrCube, 0, leftOrright);
 
-        printf("[INFO] 待抓取物体信息 ID:[%d] Angle:[%f] left/right[%d] Pose:[%f,%f,%f,%f,%f,%f]\n\n",
-               RotRectsAndID.second[i],
-               RotRectsAndID.first[i].angle, leftOrright, Pose[0], Pose[1],
-               Pose[2], Pose[3], Pose[4], Pose[5]);
+//        printf("[INFO] 待抓取物体信息 ID:[%d] Angle:[%f] left/right[%d] Pose:[%f,%f,%f,%f,%f,%f]\n\n",
+//               RotRectsAndID.second[i],
+//               RotRectsAndID.first[i].angle, leftOrright, Pose[0], Pose[1],
+//               Pose[2], Pose[3], Pose[4], Pose[5]);
 
         /// 显示目标物体外接矩形
         cv::Mat resized;
@@ -141,6 +153,6 @@ int main(int argc, char** argv)
     }
 #endif
 
-//    writer.writeBinary("/home/hustac/test.pcd", *cloud);
+    writer.writeBinary("/home/hustac/test.pcd", *cloud);
     return 0;
 }

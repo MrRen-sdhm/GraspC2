@@ -67,7 +67,10 @@ public:
 
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> detectGraspYolo(cv::Mat &image, int thresh, bool show);
 
-    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> detectBigCube(cv::Mat &image, int thresh, bool show);
+    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> detectBigObj(cv::Mat &image, int thresh, bool show);
+
+    int detectBigBall(cv::Mat &image, cv::RotatedRect &RotatedRect); // 1为检测到, -1 为未检测到
+    int detectBigCube(cv::Mat &image, cv::RotatedRect &RotatedRect); // 1为检测到, -1 为未检测到
 
     /**
      * calcRealCoor  输入kinect点云图像抓取姿态，依据手眼标定结果，输出手臂基坐标系下抓取姿态
@@ -80,7 +83,7 @@ public:
 
     /// 寻找左右侧的目标物体, 左侧找最左/上边的, 右侧找最右/下边的, RowOrCol: 1为左右最值 0为上下最值
     std::vector<int> findAimObjLR(std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID,
-                                                                                int LeftOrRightThresh, int RowOrCol);
+                                                                                float LeftOrRightThresh, int RowOrCol);
 
     /// 获取物体姿态和ID longOrshort: 0为长边 leftOrRight: 0为左臂
     static std::vector<double> getObjPose(cv::RotatedRect& RotRect,

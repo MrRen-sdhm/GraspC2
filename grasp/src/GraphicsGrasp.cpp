@@ -60,7 +60,7 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectG
     return RotatedRectsAndID;
 }
 
-std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectBigCube(cv::Mat &image, int thresh, bool show)
+std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectBigObj(cv::Mat &image, int thresh, bool show)
 {
     cv::Mat frame;
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotatedRectsAndID;
@@ -127,8 +127,57 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectB
     return RectsAndID;
 }
 
+int GraphicsGrasp::detectBigBall(cv::Mat &image, cv::RotatedRect &RotatedRect) {
+    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID;
+    std::vector<float> area;
+    std::vector<float> indices;
+
+    RotRectsAndID = detectBigObj(image, 100, false); // 检测大球, 低阈值 NOTE:检测大球和大正方体使用的阈值不一样
+    for (size_t  idx = 0; idx < RotRectsAndID.first.size(); idx++) {
+        cout << "RotRect Size: " <<  RotRectsAndID.first[idx].size.area() << endl;
+        if (RotRectsAndID.first[idx].size.area() > 10500) { // 球:12116、11030.4 立方体:8798.46、9968.54、9594.76
+            area.push_back(RotRectsAndID.first[idx].size.area());
+            indices.push_back(idx);
+        }
+    }
+
+    if (!area.empty()) {
+        auto max_area = std::max_element(area.begin(), area.end());
+        auto distance = std::distance(area.begin(), max_area);
+        RotatedRect = RotRectsAndID.first[indices[distance]]; // 在RotRectsAndID中的位置
+        std::cout << "Largest ball is " << *max_area << " at position " << distance << std::endl;
+
+        return 1;
+    } else return  -1;
+}
+
+int GraphicsGrasp::detectBigCube(cv::Mat &image, cv::RotatedRect &RotatedRect) {
+    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID;
+    cv::RotatedRect BigBallRect;
+    std::vector<float> area;
+    std::vector<float> indices;
+
+    RotRectsAndID = detectBigObj(image, 200, false); // 检测大正方体, 高阈值 NOTE:检测大球和大正方体使用的阈值不一样
+    for (size_t  idx = 0; idx < RotRectsAndID.first.size(); idx++) {
+        cout << "RotRect Size: " <<  RotRectsAndID.first[idx].size.area() << endl;
+        if (RotRectsAndID.first[idx].size.area() < 7000) { // 球:8713.38、7992.55 立方体:6000.45、5858.15
+            area.push_back(RotRectsAndID.first[idx].size.area());
+            indices.push_back(idx);
+        }
+    }
+
+    if (!area.empty()) {
+        auto max_area = std::max_element(area.begin(), area.end());
+        auto distance = std::distance(area.begin(), max_area);
+        RotatedRect = RotRectsAndID.first[indices[distance]]; // 在RotRectsAndID中的位置
+        std::cout << "Largest cube is " << *max_area << " at position " << distance << std::endl;
+
+        return 1;
+    } else return  -1;
+}
+
 std::vector<int> GraphicsGrasp::findAimObjLR(std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID,
-                                             int LeftOrRightThresh, int RowOrCol) {
+                                             float LeftOrRightThresh, int RowOrCol) {
     std::vector<int> LIndices, RIndices;
     std::vector<float> LCenters, RCenters;
     for (size_t i = 0; i < RotRectsAndID.first.size(); i++) {
@@ -161,16 +210,26 @@ std::vector<int> GraphicsGrasp::findAimObjLR(std::pair<std::vector<cv::RotatedRe
     cout << "RIndices: " << RIndices << endl;
 
     // 左侧找最小的
-    auto min_LCenter = std::min_element(LCenters.begin(), LCenters.end());
-    auto distanceL = std::distance(LCenters.begin(), min_LCenter);
-    int positionRawL = LIndices[distanceL]; // 在RotRectsAndID中的位置
-    std::cout << "LeftCenter Min element is " << *min_LCenter<< " at position " << positionRawL << std::endl;
+    int positionRawL;
+    if (!LCenters.empty()) { // 左侧有物体
+        auto min_LCenter = std::min_element(LCenters.begin(), LCenters.end());
+        auto distanceL = std::distance(LCenters.begin(), min_LCenter);
+        positionRawL = LIndices[distanceL]; // 在RotRectsAndID中的位置
+        std::cout << "LeftCenter Min element is " << *min_LCenter << " at position " << positionRawL << std::endl;
+    } else {
+        positionRawL = -1; // 未找到物体, 索引置-1
+    }
 
     // 右侧找最大的
-    auto max_RCenter = std::max_element(RCenters.begin(), RCenters.end());
-    auto distanceR = std::distance(RCenters.begin(), max_RCenter);
-    int positionRawR = RIndices[distanceR]; // 在RotRectsAndID中的位置
-    std::cout << "RightCenter Max element is " << *max_RCenter<< " at position " << positionRawR << std::endl;
+    int positionRawR;
+    if (!RCenters.empty()) { // 左侧有物体
+        auto max_RCenter = std::max_element(RCenters.begin(), RCenters.end());
+        auto distanceR = std::distance(RCenters.begin(), max_RCenter);
+        positionRawR = RIndices[distanceR]; // 在RotRectsAndID中的位置
+        std::cout << "RightCenter Max element is " << *max_RCenter << " at position " << positionRawR << std::endl;
+    } else {
+        positionRawR = -1; // 未找到物体, 索引置-1
+    }
 
     std::vector<int> AimObjIndicesLR = {positionRawL, positionRawR};
     return AimObjIndicesLR;
@@ -193,16 +252,14 @@ std::vector<double> GraphicsGrasp::calcRealCoor(const Eigen::Matrix3d& rotMatrix
     // 从外参中获取旋转向量
     std::vector<double> handEyeAxisAngle;
     if (leftOrRight == 0) { // 左臂
-        handEyeAxisAngle = {1.6493674939539318e+00,
-                            2.1497733612005401e-01,
-                            9.4954804224349210e-01,
-                            -2.2834898823134014e-01}; // 外参rotation_vector：[Angle, AxisX, AxisY, AxisZ] 单位rad
-
-        // 0517 新
-//        handEyeAxisAngle = {1.61536e+00,
-//                            1.79356e-01,
-//                            9.63044e-01,
-//                            -2.00943e-01};
+//        handEyeAxisAngle = {1.6493674939539318e+00,
+//                            2.1497733612005401e-01,
+//                            9.4954804224349210e-01,
+//                            -2.2834898823134014e-01}; // 外参rotation_vector：[Angle, AxisX, AxisY, AxisZ] 单位rad
+        handEyeAxisAngle = {1.64979,
+                            0.226241,
+                            0.949886,
+                            -0.215711}; // 外参rotation_vector：[Angle, AxisX, AxisY, AxisZ] 单位rad
     } else if (leftOrRight == 1) { // 右臂
         handEyeAxisAngle = {1.5758424729195439e+00,
                             2.2768667381355578e-01,
@@ -213,9 +270,9 @@ std::vector<double> GraphicsGrasp::calcRealCoor(const Eigen::Matrix3d& rotMatrix
     // 从外参中获取平移向量
     std::vector<double> handEyeTranslation;
     if (leftOrRight == 0) { // 左臂
-        handEyeTranslation = {-1.9141241908073422e+02, -9.3745023012161283e+01, -3.1072884798049927e+02}; // 外参translation_vector：[x, y ,z] 单位mm
-        // 0517 新
-//        handEyeTranslation = {-1.779e+02, -17.829e+01, -3.22e+02};
+//        handEyeTranslation = {-1.9141241908073422e+02, -9.3745023012161283e+01, -3.1072884798049927e+02}; // 外参translation_vector：[x, y ,z] 单位mm
+        // 0815 新
+        handEyeTranslation = {-111.763, -130.0, -285.0}; // 外参translation_vector：[x, y ,z] 单位mm
     } else if (leftOrRight == 1) { // 右臂
         handEyeTranslation = {1.8252700567245483e+02, -8.7103784084320054e+01, -1.2175752222537994e+02}; // 外参translation_vector：[x, y ,z] 单位mm
     }
@@ -340,12 +397,12 @@ std::vector<double> GraphicsGrasp::getObjPose(cv::RotatedRect& RotRect,
 
     /// 修改姿态
     if (leftOrRight == 0) {
-        b2oXYZRPY[3] = -1.54;
-        b2oXYZRPY[4] = D2R(center_angle);  // 左臂正值容易到达, 加180度 FIXME:当前未处理
+        b2oXYZRPY[3] = 1.54;
+        b2oXYZRPY[4] = D2R(center_angle * 0.75);  // 左臂正值容易到达, 加180度 FIXME:当前未处理
         b2oXYZRPY[5] = 1.54;
     } else if (leftOrRight == 1) {
         b2oXYZRPY[3] = 1.54;
-        b2oXYZRPY[4] = D2R(center_angle);  // // 右臂负值更容易到达, 不处理
+        b2oXYZRPY[4] = D2R(center_angle * 0.75);  // // 右臂负值更容易到达, 不处理
         b2oXYZRPY[5] = -1.54;
     }
 
