@@ -70,20 +70,17 @@ private:
     void resetRobot();
 
     // 合并左右臂目标位置
-    void mergeTargetPoseLR(std::vector<double> &targetPoseL, std::vector<double> &targetPoseR,
-                                                                                std::vector<double> &targetPose);
+    void mergeTargetLR(std::vector<double> &targetL, std::vector<double> &targetR, std::vector<double> &target);
 
     //获取机器人的关节角
-    std::vector<double> getRobotJoints( uint16_t _Dev);
+    std::vector<double> getRobotJoints(int armId);
 
-    //获取机器人是否空闲
+    //获取机器人是否空闲 isIdle 1: 空闲 0: 工作
     bool isIdle(uint16_t _Dev);
 
     //笛卡尔坐标转换成关节角
-    int cart2Joints(const std::vector<double> &initJoints, const std::vector<double> & targetPos, std::vector<double> &targetJoints, uint16_t _Dev);
-
-    //关节角转化成笛卡尔坐标
-    int joint2Cart(const std::vector<double> &targetJoints, std::vector<double> &targetPos, uint16_t _Dev);
+    int cart2Joints(const std::vector<double> &initJoints, const std::vector<double> & targetPos,
+                                                                    std::vector<double> &targetJoints, uint16_t _Dev);
 
     //拍摄照片
     bool captureImage(int exposureTime = 500);
@@ -94,15 +91,19 @@ private:
     // 双臂同时抓取
     bool graspControlDual();
 
-//    void handControl(uint16_t handType, YinShiDriver::HandCMD _CMD); // FIXME
-
     // 移动指定路径 targetPose[xyzrpy] 单位[m/rad] armId[0为左臂 1为右臂]
-    void movePath(const std::vector<double>& targetPose, double vel, double acc, int armId);
+    void MovePath(const std::vector<double>& targetPose, double vel, double acc, int armId);
 
     // 双臂同时移动到目标位置, 均到达目标位置后退出
-    void moveSync(const std::vector<double>& targetPose, double vel, double acc);
+    void MoveSync(const std::vector<double>& targetPose, double vel, double acc);
 
-    void MoveInit(int armId);
+    // 同步移动关节角
+    void MoveJoints(const std::vector<double>& targetJoints, double vel, double acc);
+
+    // 在当前位置基础上调整Joint6角度
+    void MoveJoint6(double targetJoint6L, double targetJoint6R);
+
+    void MoveInit();
 
     void MoveMiddle(int armId);
 
@@ -110,24 +111,11 @@ private:
 
     void HandClose(int armId);
 
-    //移动到指定点（关节角）
-    void moveOnece(const std::vector<double>& targetJoints, ArmRobotMotionType motionType, double acc, double vel, int armId);
-
-    //移动到指定点（欧拉角）
-    void moveCart(std::vector<double> targetPose, double acc, double vel, int armId);
-
-    //移动到指定点（旋转矩阵）
-    void moveQuat(Eigen::Vector3d targetPosition, Eigen::Matrix3d targetQuat, ArmRobotMotionType motionType,
-                                   double acc, double vel, int armId);
-
-    //魔方控制线程
+    // 抓取控制线程
     void graspControlThreadFunc();
 
     // 点云初始化
     void cloudInit();
-
-    //手爪控制线程
-    void handControlThreadFunc();
 
 /// ******************************* 抓取姿态生成 ******************************* ///
 private:
@@ -206,12 +194,15 @@ private:
 
 private:
     /// 抓取相关参数
+    const double Vel_Lv1 = 1.5;
+    const double Acc_Lv1 = 0.5;
+
     const int LeftOrRightThresh = 420; // 左右臂分工阈值, 列数小于阈值为左臂管辖
 
     /// 垂直抓取相关位置
     // 起始位置
-    const std::vector<double> InitPose = {1.62, 0.360, -1.92, -0.64, 0.026, 0.00,
-                                         -1.62, -0.360, 1.92, 0.64, -0.026, 0.00};
+//    const std::vector<double> InitPose = {1.62, 0.360, -1.92, -0.64, 0.026, 0.00,
+//                                         -1.62, -0.360, 1.92, 0.64, -0.026, 0.00};
     // 中间位置
     const std::vector<double> MiddlePose = {1.62, 0.920, -1.92, -0.64, 0.026, 0.00,
                                             -1.62, 0.920, 1.92, 0.64, -0.026, 0.00};

@@ -341,7 +341,7 @@ std::vector<double> GraphicsGrasp::getObjPose(cv::RotatedRect& RotRect,
     /// 修改姿态
     if (leftOrRight == 0) {
         b2oXYZRPY[3] = -1.54;
-        b2oXYZRPY[4] = D2R(center_angle + 0);  // 左臂正值容易到达, 加180度 FIXME:当前未处理
+        b2oXYZRPY[4] = D2R(center_angle);  // 左臂正值容易到达, 加180度 FIXME:当前未处理
         b2oXYZRPY[5] = 1.54;
     } else if (leftOrRight == 1) {
         b2oXYZRPY[3] = 1.54;
