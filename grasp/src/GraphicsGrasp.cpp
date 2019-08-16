@@ -23,13 +23,13 @@ namespace {
 GraphicsGrasp::GraphicsGrasp()
 {
     /// gpd 初始化
-//    grasp_detector_ = new gpd::GraspDetectorPointNet(gpd_cfg_file); // FIXME
+//    grasp_detector_ = new gpd::GraspDetectorPointNet(gpd_cfg_file); // TODO
 
     /// yolo 初始化
     yoloDetector = new YoloDetector(yolo_config_filename, yolo_weights_filename);
 }
 
-// FIXME
+// TODO
 //std::vector<std::unique_ptr<gpd::candidate::Hand>> GraphicsGrasp::detectGraspPoses(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud)
 //{
 //    Eigen::Matrix3Xd view_points(3,1);
@@ -46,8 +46,9 @@ GraphicsGrasp::GraphicsGrasp()
 //    return grasps;
 //}
 
-std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectGraspYolo(cv::Mat &image, int thresh, bool show)
+std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectGraspYolo(cv::Mat &image, int thresh, int show)
 {
+    printf("\n[FUNC] Detect Grasp Yolo ...\n");
     cv::Mat resized;
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotatedRectsAndID;
 
@@ -60,7 +61,7 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectG
     return RotatedRectsAndID;
 }
 
-std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectBigObj(cv::Mat &image, int thresh, bool show)
+std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectBigObj(cv::Mat &image, int thresh, int show)
 {
     cv::Mat frame;
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotatedRectsAndID;
@@ -73,12 +74,12 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectB
 
     cv::Mat img_hsv;
     cv::cvtColor(frame, img_hsv, CV_BGR2HSV);
-    if(show) cv::imshow("hsv", img_hsv);
+    if(show == 1 | show == 2) cv::imshow("hsv", img_hsv);
 
     /// HSV阈值分割获取掩码
     int thresh_v_high = thresh; // V通道阈值
-    cv::Point LU(100, 240); // 桌面区域左上角点 (x, y)=(col, row)
-    cv::Point RD(730, 540); // 桌面区域右下角点 (x, y)=(col, row)
+    cv::Point LU(LU_[0], LU_[1]); // 桌面区域左上角点 (x, y)=(col, row)
+    cv::Point RD(RD_[0], RD_[1]); // 桌面区域右下角点 (x, y)=(col, row)
     cv::Mat mask = cv::Mat::zeros(img_hsv.rows, img_hsv.cols, CV_8U); // 掩码
     for(int r = 0; r < img_hsv.rows; ++r)
     {
@@ -95,7 +96,7 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectB
         }
     }
 
-    if(show) cv::imshow("mask", mask);
+    if(show == 1 | show == 2) cv::imshow("mask", mask);
 
     std::vector<cv::RotatedRect> rotRects;
     cv::Rect box(cv::Point(0, 0), cv::Size(0, 0));
@@ -110,17 +111,12 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectB
         printf("[INFO] Detected %zu big cube.\n", rotRects.size());
     }
 
-    if(show) {
+    if(show == 1 | show == 2) {
         for (size_t i = 0; i < RotatedRects.size(); i++) {
             std::cout << "[INFO] minAreaRectOut" << i << " center:" << RotatedRects[i].center << " angle: " <<
                                                 RotatedRects[i].angle << " size: " << RotatedRects[i].size << std::endl;
         }
     }
-
-    rectangle(frame_copy, LU, RD, cv::Scalar(255, 178, 50), 1);
-
-    if(show) cv::imshow("main area", frame_copy);
-    if(show) cv::waitKey(0);
 
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RectsAndID {RotatedRects, RectsID};
 
@@ -128,6 +124,7 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectB
 }
 
 int GraphicsGrasp::detectBigBall(cv::Mat &image, cv::RotatedRect &RotatedRect) {
+    printf("\n[FUNC] Detect BigBall ...\n");
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID;
     std::vector<float> area;
     std::vector<float> indices;
@@ -152,6 +149,8 @@ int GraphicsGrasp::detectBigBall(cv::Mat &image, cv::RotatedRect &RotatedRect) {
 }
 
 int GraphicsGrasp::detectBigCube(cv::Mat &image, cv::RotatedRect &RotatedRect) {
+    printf("\n[FUNC] Detect BigCube ...\n");
+
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID;
     cv::RotatedRect BigBallRect;
     std::vector<float> area;
@@ -176,38 +175,44 @@ int GraphicsGrasp::detectBigCube(cv::Mat &image, cv::RotatedRect &RotatedRect) {
     } else return  -1;
 }
 
-std::vector<int> GraphicsGrasp::findAimObjLR(std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID,
-                                             float LeftOrRightThresh, int RowOrCol) {
+std::vector<int> GraphicsGrasp::findAimObjLR(std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID, int RowOrCol) {
+    printf("\n[FUNC] Detect objects in the left or right work area ...\n");
+
     std::vector<int> LIndices, RIndices;
     std::vector<float> LCenters, RCenters;
     for (size_t i = 0; i < RotRectsAndID.first.size(); i++) {
         float center_x = RotRectsAndID.first[i].center.x;
         float center_y = RotRectsAndID.first[i].center.y;
-        if (center_x < LeftOrRightThresh) { // 先区分左右
+
+        /// 先区分左右工作区域
+        if (center_x < LeftOrRightThresh && center_x > WorkAreaThreshL) { // 左侧
             if (RowOrCol == 1) { // 存储列值, 用于找横向最值
-                printf("LeftCenter[%zu]: %f\n", i, center_x);
+//                printf("LeftCenter[%zu]: %f\n", i, center_x);
                 LCenters.push_back(center_x);
             } else if (RowOrCol == 0) { // 存储行值, 用于找纵向最值
-                printf("LeftCenter[%zu]: %f\n", i, center_y);
+//                printf("LeftCenter[%zu]: %f\n", i, center_y);
                 LCenters.push_back(center_y);
             }
             LIndices.push_back(i);
-        } else {
+        } else if (center_x > LeftOrRightThresh && center_x < WorkAreaThreshR){ // 右侧
             if (RowOrCol == 1) { // 存储列值, 用于找横向最值
-                printf("RightCenter[%zu]: %f\n", i, center_x);
+//                printf("RightCenter[%zu]: %f\n", i, center_x);
                 RCenters.push_back(center_x);
             } else if (RowOrCol == 0) { // 存储行值, 用于找纵向最值
-                printf("RightCenter[%zu]: %f\n", i, center_y);
+//                printf("RightCenter[%zu]: %f\n", i, center_y);
                 RCenters.push_back(center_y);
             }
             RIndices.push_back(i);
         }
     }
 
-    cout << "leftCenters: " << LCenters << endl;
-    cout << "LIndices: " << LIndices << endl;
-    cout << "rightCenters: " << RCenters << endl;
-    cout << "RIndices: " << RIndices << endl;
+    printf("[INFO] Detect %zu objects in the left work area.\n", LIndices.size());
+    cout << "[INFO] Left Object Centers: " << LCenters << endl;
+    cout << "[INFO] Left Object Indices: " << LIndices << endl;
+
+    printf("[INFO] Detect %zu objects in the right work area.\n", RIndices.size());
+    cout << "[INFO] Right Object Centers: " << RCenters << endl;
+    cout << "[INFO] Right Object Indices: " << RIndices << endl;
 
     // 左侧找最小的
     int positionRawL;
@@ -215,7 +220,8 @@ std::vector<int> GraphicsGrasp::findAimObjLR(std::pair<std::vector<cv::RotatedRe
         auto min_LCenter = std::min_element(LCenters.begin(), LCenters.end());
         auto distanceL = std::distance(LCenters.begin(), min_LCenter);
         positionRawL = LIndices[distanceL]; // 在RotRectsAndID中的位置
-        std::cout << "LeftCenter Min element is " << *min_LCenter << " at position " << positionRawL << std::endl;
+        std::cout << "[INFO] LeftCenter Min element is " << *min_LCenter << " at position "
+                                                    << positionRawL << " in RotRectsAndID" << std::endl;
     } else {
         positionRawL = -1; // 未找到物体, 索引置-1
     }
@@ -226,7 +232,8 @@ std::vector<int> GraphicsGrasp::findAimObjLR(std::pair<std::vector<cv::RotatedRe
         auto max_RCenter = std::max_element(RCenters.begin(), RCenters.end());
         auto distanceR = std::distance(RCenters.begin(), max_RCenter);
         positionRawR = RIndices[distanceR]; // 在RotRectsAndID中的位置
-        std::cout << "RightCenter Max element is " << *max_RCenter << " at position " << positionRawR << std::endl;
+        std::cout << "[INFO] RightCenter Max element is " << *max_RCenter << " at position "
+                                                    << positionRawR << " in RotRectsAndID" << std::endl;
     } else {
         positionRawR = -1; // 未找到物体, 索引置-1
     }
@@ -309,6 +316,7 @@ std::vector<double> GraphicsGrasp::calcRealCoor(const Eigen::Matrix3d& rotMatrix
 
 std::vector<double> GraphicsGrasp::getObjPose(cv::RotatedRect& RotRect,
             const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr& cloud, int juggleOrCube, int longOrshort, int leftOrRight) {
+    printf("\n[FUNC] Get Object Poses ...\n");
     int row = 0, col = 0;
     float center_x = 0, center_y = 0, center_z = 0;
     float center_angle = RotRect.angle;
@@ -396,13 +404,17 @@ std::vector<double> GraphicsGrasp::getObjPose(cv::RotatedRect& RotRect,
            b2oXYZRPY[2], b2oXYZRPY[3], b2oXYZRPY[4], b2oXYZRPY[5]);
 
     /// 修改姿态
+    float coeff = 1.0; // 角度校正系数
+    if (center_angle > 90) coeff = 0.75;
+    else if (center_angle < 90) coeff = 1.25;
+    
     if (leftOrRight == 0) {
         b2oXYZRPY[3] = 1.54;
-        b2oXYZRPY[4] = D2R(center_angle * 0.75);  // 左臂正值容易到达, 加180度 FIXME:当前未处理
+        b2oXYZRPY[4] = D2R(center_angle * coeff);  // 左臂正值容易到达, 加180度 FIXME:当前未处理
         b2oXYZRPY[5] = 1.54;
     } else if (leftOrRight == 1) {
         b2oXYZRPY[3] = 1.54;
-        b2oXYZRPY[4] = D2R(center_angle * 0.75);  // // 右臂负值更容易到达, 不处理
+        b2oXYZRPY[4] = D2R(center_angle * coeff);  // // 右臂负值更容易到达, 不处理
         b2oXYZRPY[5] = -1.54;
     }
 
@@ -465,6 +477,38 @@ void GraphicsGrasp::getPointLoc(int row, int col, float &loc_x, float &loc_y, fl
         printf("row: %d col: %d loc_z: %f\n", row, col, loc_z);
         throw std::runtime_error("\033[0;31mCenter point's depth is not valid!\033[0m\n");
     }
+}
+
+void GraphicsGrasp::showWorkArea(cv::Mat &image) {
+    cv::Mat frame;
+
+    cv::resize(image, frame, cv::Size(960, 540)); // 缩小图片
+
+    cv::Point LU(LU_[0], LU_[1]); // 桌面区域左上角点 (x, y)=(col, row)
+    cv::Point RD(RD_[0], RD_[1]); // 桌面区域右下角点 (x, y)=(col, row)
+
+    // 左
+    cv::Point AreaLeftLU(LU_[0], LU_[1]); // 桌面区域左上角点 (x, y)=(col, row)
+    cv::Point AreaLeftRD(WorkAreaThreshL, RD_[1]); // 桌面区域右下角点 (x, y)=(col, row)
+    // 中
+    cv::Point AreaMiddleLU(WorkAreaThreshL, LU_[1]); // 桌面区域左上角点 (x, y)=(col, row)
+    cv::Point AreaMiddleRD(WorkAreaThreshR, RD_[1]); // 桌面区域右下角点 (x, y)=(col, row)
+    // 右
+    cv::Point AreaRightLU(WorkAreaThreshL, LU_[1]); // 桌面区域左上角点 (x, y)=(col, row)
+    cv::Point AreaRightRD(RD_[0], RD_[1]); // 桌面区域右下角点 (x, y)=(col, row)
+
+    // 左右分割框
+    cv::Point AreaLeftRightLU(LU_[0], LU_[1]); // 桌面区域左上角点 (x, y)=(col, row)
+    cv::Point AreaLeftRightRD(LeftOrRightThresh, RD_[1]); // 桌面区域右下角点 (x, y)=(col, row)
+
+    rectangle(frame, LU, RD, cv::Scalar(255, 178, 50), 1);
+    rectangle(frame, AreaLeftLU, AreaLeftRD, cv::Scalar(255, 178, 50), 1);
+    rectangle(frame, AreaMiddleLU, AreaMiddleRD, cv::Scalar(255, 178, 50), 1);
+    rectangle(frame, AreaRightLU, AreaRightRD, cv::Scalar(255, 178, 50), 1);
+    rectangle(frame, AreaLeftRightLU, AreaLeftRightRD, cv::Scalar(255, 178, 50), 1);
+
+    cv::imshow("Work Area", frame);
+    cv::waitKey(0);
 }
 
 void GraphicsGrasp::createPointCloud(cv::Mat &color, cv::Mat &depth, const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr& cloud) {

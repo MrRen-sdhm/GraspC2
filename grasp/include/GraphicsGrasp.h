@@ -65,9 +65,9 @@ class GraphicsGrasp {
 public:
     GraphicsGrasp();
 
-    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> detectGraspYolo(cv::Mat &image, int thresh, bool show);
+    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> detectGraspYolo(cv::Mat &image, int thresh, int show);
 
-    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> detectBigObj(cv::Mat &image, int thresh, bool show);
+    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> detectBigObj(cv::Mat &image, int thresh, int show);
 
     int detectBigBall(cv::Mat &image, cv::RotatedRect &RotatedRect); // 1为检测到, -1 为未检测到
     int detectBigCube(cv::Mat &image, cv::RotatedRect &RotatedRect); // 1为检测到, -1 为未检测到
@@ -82,8 +82,7 @@ public:
     static std::vector<double> calcRealCoor(const Eigen::Matrix3d& rotMatrix, const Eigen::Vector3d& translation, int leftOrRight);
 
     /// 寻找左右侧的目标物体, 左侧找最左/上边的, 右侧找最右/下边的, RowOrCol: 1为左右最值 0为上下最值
-    std::vector<int> findAimObjLR(std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID,
-                                                                                float LeftOrRightThresh, int RowOrCol);
+    std::vector<int> findAimObjLR(std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID, int RowOrCol);
 
     /// 获取物体姿态和ID longOrshort: 0为长边 leftOrRight: 0为左臂
     static std::vector<double> getObjPose(cv::RotatedRect& RotRect,
@@ -98,6 +97,9 @@ public:
     */
 //    std::vector<std::unique_ptr<gpd::candidate::Hand>> detectGraspPoses(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud); //FIXME
 
+    /// 显示工作区域
+    void showWorkArea(cv::Mat &image);
+
     /// 创建点云 缩小一倍 color(1920*1080) depth(1920*1080) cloud(960*540)
     void createPointCloud(cv::Mat &color, cv::Mat &depth, const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr& cloud);
 
@@ -105,6 +107,13 @@ public:
 
     static void readCameraInfo(cv::Mat &cameraMatrix);
 
+public:
+    /// 工作区域划分
+    std::vector<int> LU_ = {100, 240}; // 桌面区域左上角点 (x, y)=(col, row)
+    std::vector<int> RD_ = {730, 540}; // 桌面区域右下角点 (x, y)=(col, row)
+    const float LeftOrRightThresh = 420.0; // 左右臂分工阈值, 列数小于阈值为左臂管辖
+    const float WorkAreaThreshL = 250.0; // 左侧工作区域分割阈值
+    const float WorkAreaThreshR = 600.0; // 右侧工作区域分割阈值
 private:
     /// GPD FIXME
 //    gpd::GraspDetectorPointNet* grasp_detector_; ///< used to run the GPD algorithm
@@ -113,7 +122,7 @@ private:
     /// YOLO
     YoloDetector* yoloDetector;
 
-    // 点云生成相关参数
+    /// 点云生成相关参数
     cv::Mat lookupX, lookupY; // 像素坐标转换到相机坐标
 };
 

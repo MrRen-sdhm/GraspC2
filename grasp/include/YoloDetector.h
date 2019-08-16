@@ -23,17 +23,17 @@ public:
     YoloDetector(const std::string& config_file, const std::string& weights_file);
 
     // Get the bounding boxes of objects
-    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> getRotRectsAndID(cv::Mat &image, int thresh, bool show);
+    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> getRotRectsAndID(cv::Mat &image, int thresh, int show);
 
     bool calRotatedRect(cv::Mat img_roi, cv::Mat mask, const cv::Rect& box,
-                                                    std::vector<cv::RotatedRect> &rotRects, int juggleOrCube, bool show);
+                                                    std::vector<cv::RotatedRect> &rotRects, int juggleOrCube, int show);
 
 private:
     // init the network
     void init(const std::string& config_file, const std::string& weights_file);
 
-    // Remove the bounding boxes with low confidence using non-maxima suppression
-    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> postprocess(cv::Mat& frame, int thresh, bool show);
+    // show: 1-全部显示 2-逐个显示 其他-不显示
+    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> postprocess(cv::Mat& frame, int thresh, int show);
 
     // Draw the predicted bounding box
         static void drawPred(int classId, float conf, int left, int top, int right, int bottom, cv::Mat& frame,

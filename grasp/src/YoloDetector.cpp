@@ -36,7 +36,7 @@ void YoloDetector::init(const std::string& config_file, const std::string& weigh
     std::cout << "[INFO] Yolo detector initialize done." << endl;
 }
 
-std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloDetector::getRotRectsAndID(cv::Mat &image, int thresh, bool show) {
+std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloDetector::getRotRectsAndID(cv::Mat &image, int thresh, int show) {
 
     cv::Mat resized_image, img_float;
     cv::cvtColor(image, resized_image,  cv::COLOR_RGB2BGR);
@@ -95,9 +95,9 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloDetector::getRotRe
 
         std::cout << "[INFO] Detected " << boxes_.size() << " objects by Yolo." << endl;
 
-        cout << "class: " << classIds_ << endl;
-        cout << "conf: " << confidences_ << endl;
-        cout << "boxes: " << boxes_ << endl;
+        cout << "[INFO] class: " << classIds_ << endl;
+        cout << "[INFO] conf: " << confidences_ << endl;
+        cout << "[INFO] boxes: " << boxes_ << endl << endl << endl;
 
         // 保存图片
 //        for (size_t i = 0; i < result.size(0) ; i++)
@@ -119,7 +119,7 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloDetector::getRotRe
     return RotRectsAndID;
 }
 
-std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloDetector::postprocess(cv::Mat& frame, int thresh, bool show)
+std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloDetector::postprocess(cv::Mat& frame, int thresh, int show)
 {
     std::vector<cv::RotatedRect> RotatedRects;
     std::vector<int> RectsID;
@@ -129,14 +129,14 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloDetector::postproc
     {
         cv::Rect box = boxes_[i];
 
-        if(box.height * box.width < 40*40 || box.height * box.width > 100*100) continue; // FIXME: 滤除过大/小的物体
+        if(box.height * box.width < 40*40 || box.height * box.width > 100*100) continue; // NOTE: 滤除过大/小的物体
 
         cv::Mat img_roi = frame.clone()(box);
-        if(show) cv::imshow("roi", img_roi);
+        if(show == 1 | show == 2) cv::imshow("roi", img_roi);
 
         cv::Mat img_hsv;
         cv::cvtColor(img_roi, img_hsv, CV_BGR2HSV);
-        if(show) cv::imshow("hsv", img_hsv);
+        if(show == 1 | show == 2) cv::imshow("hsv", img_hsv);
 
         /// HSV阈值分割获取掩码
         int thresh_v_high = thresh; // V通道阈值
@@ -153,7 +153,7 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloDetector::postproc
                 }
             }
         }
-        if(show) cv::imshow("mask", mask);
+        if(show == 1 | show == 2) cv::imshow("mask", mask);
 
         /// 计算最小外接矩形
         std::vector<cv::RotatedRect> rotRects;
@@ -162,21 +162,21 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloDetector::postproc
             RectsID.push_back(classIds_[i]); // 存储外接矩形对应的物体类别
         }
 
-        if(show) std::cout << "minAreaRectOut: center:" << rotRects[0].center << " angle: " <<
+        if(show == 1 | show == 2) std::cout << "minAreaRectOut: center:" << rotRects[0].center << " angle: " <<
                                                         rotRects[0].angle << " size: " << rotRects[0].size << std::endl;
 
-        // 获取各目标位置
-//        if (classes_[classIds_[idx]] == "bottle" && confidences_[idx] > 0.4) {
-//            std::cout << box << std::endl;
-//            obj_boxes.push_back(box);
-//            bottleNum ++;
-//        }
+        if(show == 1 | show == 2) drawPred(classIds_[i], confidences_[i], box.x, box.y, box.x + box.width,
+                box.y + box.height, frame_copy, get_classes_vec()); // 画边框
 
-        if(show) drawPred(classIds_[i], confidences_[i], box.x, box.y, box.x + box.width, box.y + box.height,
-                frame_copy, get_classes_vec()); // 画边框
+        if(show == 2) {
+            cv::imshow("result", frame_copy);
+            cv::waitKey(0);
+        }
+    }
 
-        if(show) cv::imshow("result", frame_copy);
-        if(show) cv::waitKey(0);
+    if(show == 1) {
+        cv::imshow("result", frame_copy);
+        cv::waitKey(0);
     }
 
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RectsAndID {RotatedRects, RectsID};
@@ -185,7 +185,7 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloDetector::postproc
 }
 
 bool YoloDetector::calRotatedRect(cv::Mat img_roi, cv::Mat mask, const cv::Rect& box,
-                                                    std::vector<cv::RotatedRect> &rotRects, int juggleOrCube, bool show){
+                                                    std::vector<cv::RotatedRect> &rotRects, int juggleOrCube, int show){
     std::vector<int> bigAreaIdx;
     const double areaThresh = 1200.0; // 积木与立方体轮廓面积区分阈值
 
@@ -287,7 +287,7 @@ bool YoloDetector::calRotatedRect(cv::Mat img_roi, cv::Mat mask, const cv::Rect&
         }
     }
 
-    if(show) cv::imshow("roi_minAreaRect", img_roi);
+    if(show == 1) cv::imshow("roi_minAreaRect", img_roi);
 
     return true;
 }

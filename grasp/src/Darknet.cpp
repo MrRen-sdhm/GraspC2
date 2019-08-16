@@ -524,8 +524,7 @@ void Darknet::load_weights(const char *weight_file)
     at::TensorOptions options= torch::TensorOptions()
         .dtype(torch::kFloat32)
         .is_variable(true);
-    at::Tensor weights = torch::CPU(torch::kFloat32).tensorFromBlob(weights_src, {length/4}); // FIXME
-//    at::Tensor weights = torch::from_blob(weights_src, {length/4}).to(torch::kCPU);
+    at::Tensor weights = torch::CPU(torch::kFloat32).tensorFromBlob(weights_src, {length/4});
 
 	for (int i = 0; i < module_list.size(); i++)
 	{

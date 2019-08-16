@@ -7,7 +7,6 @@
 #include <future>
 #include <stdlib.h>
 
-//#include <YinShiDriver.h> //FIXME
 #include <cobotsys/cobotsys_global_object_factory.h>
 #include <cobotsys/cobotsys_file_finder.h>
 #include <cobotsys/extra2.h>
@@ -55,32 +54,22 @@ public:
      */
     void stop();
 
-    // 弧度转角度
-    std::vector<float> RVec2DVec(const std::vector<float> &RVec);
-
-    // 角度转弧度
-    std::vector<float> DVec2RVec(const std::vector<float> &DVec);
-
 private:
 
     //结束所有的工作线程
     void destoryTaskThreads();
 
-    //机器人复位
-    void resetRobot();
-
     // 合并左右臂目标位置
     void mergeTargetLR(std::vector<double> &targetL, std::vector<double> &targetR, std::vector<double> &target);
 
     //获取机器人的关节角
-    std::vector<double> getRobotJoints(int armId);
+    std::vector<double> getRobotJoints();
 
     //获取机器人是否空闲 isIdle 1: 空闲 0: 工作
     bool isIdle(uint16_t _Dev);
 
-    //笛卡尔坐标转换成关节角
-    int cart2Joints(const std::vector<double> &initJoints, const std::vector<double> & targetPos,
-                                                                    std::vector<double> &targetJoints, uint16_t _Dev);
+    //笛卡尔坐标转换成关节角, 输入size为12， 输出size为6
+    std::vector<double> cart2Joints(const std::vector<double> &targetPose, int armId);
 
     //拍摄照片
     bool captureImage(int exposureTime = 500);
@@ -91,7 +80,10 @@ private:
     // 双臂同时抓取
     bool graspControlDual();
 
-    // 移动指定位姿 armId: 0-左臂 1-右臂 2-双臂
+    // 移动指定位姿 实际使用的是MoveJ 输入笛卡尔 转换为关节角 armId: 0-左臂 1-右臂 2-双臂
+    void Move(const std::vector<double>& targetPose, double vel, double acc, int armId);
+
+    // 移动指定位姿 实际使用的是MoveL 输入笛卡尔 armId: 0-左臂 1-右臂 2-双臂
     void MovePose(const std::vector<double>& targetPose, double vel, double acc, int armId);
 
     // 移动指定关节角 armId: 0-左臂 1-右臂 2-双臂
@@ -100,15 +92,10 @@ private:
     // 移动指定路径 targetPose[xyzrpy] 单位[m/rad] armId[0为左臂 1为右臂]
     void MovePath(const std::vector<double>& targetPose, double vel, double acc, int armId);
 
-    // 双臂同时移动到目标位置, 均到达目标位置后退出
-    void MoveSync(const std::vector<double>& targetPose, double vel, double acc);
-
     // 在当前位置基础上调整Joint6角度
     void MoveJoint6(double targetJoint6L, double targetJoint6R, int armId);
 
     void MoveInit();
-
-    void MoveMiddle(int armId);
 
     void HandOpen(int armId);
 
@@ -159,17 +146,10 @@ private:
     std::shared_ptr<DualArmRobotDriver> _cassemble2Driver;
 
     std::thread _graspControlThread;
-    std::thread _viewControlThread;
     std::thread _handControlThread;
 
     //阶段任务执行开关变量
     volatile bool _graspControlStart;
-
-    std::vector<std::vector<double> > _startHome;
-    std::vector<std::vector<double> > _endHome;
-    std::vector<std::vector<std::vector<double> > > _capturePoint;
-
-    std::pair<int, int> _currentArmAndPointId;
 
     CameraFrame _captureImages; //存储相机拍摄的照片
 
@@ -202,12 +182,10 @@ private:
     const double Vel_Lv2 = 1.5;
     const double Acc_Lv2 = 0.5;
 
-    const float LeftOrRightThresh = 420.0; // 左右臂分工阈值, 列数小于阈值为左臂管辖
-
     /// 垂直抓取相关位置
     // 起始位置
-//    const std::vector<double> InitPose = {1.62, 0.360, -1.92, -0.64, 0.026, 0.00,
-//                                         -1.62, -0.360, 1.92, 0.64, -0.026, 0.00};
+    const std::vector<double> IniteJoints = {1.62, 0.360, -1.92, -0.64, 0.026, 0.00,
+                                            -1.62, -0.360, 1.92, 0.64, -0.026, 0.00};
     // 中间位置
     const std::vector<double> MiddlePose = {1.62, 0.920, -1.92, -0.64, 0.026, 0.00,
                                             -1.62, 0.920, 1.92, 0.64, -0.026, 0.00};
@@ -215,6 +193,23 @@ private:
     // 放置位置
     const std::vector<double> EndJoints = {D2R(97.402), D2R(93.306), D2R(-69.662), D2R(19.228), D2R(9.333), D2R(-169.197),
                                            D2R(-92.52), D2R(-104.37), D2R(12.86), D2R(-40.35), D2R(-4.63), D2R(157.63)};
+    // 左侧放置位置1 FIXME
+    const std::vector<double> PlaceJointsL1 = {D2R(97.402), D2R(93.306), D2R(-69.662), D2R(19.228), D2R(9.333), D2R(-169.197)};
+
+    // 左侧放置位置2 FIXME
+    const std::vector<double> PlaceJointsL2 = {D2R(97.402), D2R(93.306), D2R(-69.662), D2R(19.228), D2R(9.333), D2R(-169.197)};
+
+    // 左侧放置位置3 FIXME
+    const std::vector<double> PlaceJointsL3 = {D2R(97.402), D2R(93.306), D2R(-69.662), D2R(19.228), D2R(9.333), D2R(-169.197)};
+
+    // 右侧放置位置1 FIXME
+    const std::vector<double> PlaceJointsR1 = {D2R(97.402), D2R(93.306), D2R(-69.662), D2R(19.228), D2R(9.333), D2R(-169.197)};
+
+    // 右侧放置位置2 FIXME
+    const std::vector<double> PlaceJointsR2 = {D2R(97.402), D2R(93.306), D2R(-69.662), D2R(19.228), D2R(9.333), D2R(-169.197)};
+
+    // 右侧放置位置3 FIXME
+    const std::vector<double> PlaceJointsR3 = {D2R(97.402), D2R(93.306), D2R(-69.662), D2R(19.228), D2R(9.333), D2R(-169.197)};
 
     /// 水平抓取相关位置
     // 平着
