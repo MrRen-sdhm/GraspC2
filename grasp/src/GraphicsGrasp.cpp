@@ -54,7 +54,8 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectG
 
     cv::resize(image, resized, cv::Size(960, 540)); // 缩小图片
 
-    RotatedRectsAndID = yoloDetector->getRotRectsAndID(resized, thresh, show);
+    cv::Rect rect(cv::Point(LU_[0], LU_[1]), cv::Size(RD_[0]-LU_[0], RD_[1]-LU_[1]));
+    RotatedRectsAndID = yoloDetector->getRotRectsAndID(resized, rect, thresh, show);
 
     printf("[INFO] Detected %zu rotated rects.\n", RotatedRectsAndID.first.size());
 
@@ -108,7 +109,7 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectB
             RectsID.push_back(6); // 存储外接矩形对应的物体类别
         }
 
-        printf("[INFO] Detected %zu big cube.\n", rotRects.size());
+        printf("[INFO] Detected %zu big obj.\n", rotRects.size());
     }
 
     if(show == 1 | show == 2) {
@@ -314,7 +315,7 @@ std::vector<double> GraphicsGrasp::calcRealCoor(const Eigen::Matrix3d& rotMatrix
     return b2oXYZRPY;
 }
 
-std::vector<double> GraphicsGrasp::getObjPose(cv::RotatedRect& RotRect,
+bool GraphicsGrasp::getObjPose(cv::RotatedRect& RotRect, std::vector<double> &b2oXYZRPY,
             const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr& cloud, int juggleOrCube, int longOrshort, int leftOrRight) {
     printf("\n[FUNC] Get Object Poses ...\n");
     int row = 0, col = 0;
@@ -322,11 +323,22 @@ std::vector<double> GraphicsGrasp::getObjPose(cv::RotatedRect& RotRect,
     float center_angle = RotRect.angle;
 
     if (juggleOrCube == 0) { // 积木
+        if (RotRect.size.area() < 25) { // 为空
+            printf("\033[0;31m%s\033[0m\n", "[ERRO] RotRect invalid for getObjPose!\n");
+            return false;
+        }
+
         row = (int)RotRect.center.y;
         col = (int)RotRect.center.x;
-        getPointLoc(row, col, center_x, center_y, center_z, cloud);
+
+        if(!getPointLoc(row, col, center_x, center_y, center_z, cloud)) return false;
 
     } else if (juggleOrCube == 1) { // 正方体
+        if (RotRect.size.area() < 25) { // 为空
+            printf("\033[0;31m%s\033[0m\n", "[ERRO] RotRect invalid for getObjPose!\n");
+            return false;
+        }
+
         float x, y, z; // 不准确的中心位置
         float x1, y1, z1; // 实际位置1
         float x2, y2, z2; // 实际位置2
@@ -345,16 +357,16 @@ std::vector<double> GraphicsGrasp::getObjPose(cv::RotatedRect& RotRect,
         // 获取实际位置1
         row = (int)P1.y;
         col = (int)P1.x;
-        getPointLoc(row, col, x1, y1, z1, cloud);
+        if (!getPointLoc(row, col, x1, y1, z1, cloud)) return false;
         // 获取实际位置2
         row = (int)P2.y;
         col = (int)P2.x;
-        getPointLoc(row, col, x2, y2, z2, cloud);
+        if (!getPointLoc(row, col, x2, y2, z2, cloud)) return false;
 
         // 获取不准确的中心位置
         row = (int)RotRect.center.y;
         col = (int)RotRect.center.x;
-        getPointLoc(row, col, x, y, z, cloud);
+        if (!getPointLoc(row, col, x, y, z, cloud)) return false;
 
         printf("[INFO] Big cube raw Center[%f %f %f]\n", x, y, z);
         printf("[INFO] Big cube correct P1[%f %f %f] P2[%f %f %f]\n", x1, y1, z1, x2, y2, z2);
@@ -397,7 +409,6 @@ std::vector<double> GraphicsGrasp::getObjPose(cv::RotatedRect& RotRect,
     Eigen::Matrix3d c2o_rot = c2o_quat.matrix(); // 相机到物体旋转矩阵
     Eigen::Vector3d c2o_trans (center_x, center_y, center_z); // 相机到物体平移矩阵
 
-    std::vector<double> b2oXYZRPY; // 基坐标到物体
     b2oXYZRPY = calcRealCoor(c2o_rot, c2o_trans, leftOrRight); // 计算基坐标到物体转换关系
 
     printf("[INFO] 基坐标系->物体: [%f,%f,%f,%f,%f,%f]\n", b2oXYZRPY[0], b2oXYZRPY[1],
@@ -421,25 +432,26 @@ std::vector<double> GraphicsGrasp::getObjPose(cv::RotatedRect& RotRect,
     printf("[INFO] 基坐标系->物体(修改姿态): [%f,%f,%f,%f,%f,%f]\n", b2oXYZRPY[0], b2oXYZRPY[1],
            b2oXYZRPY[2], b2oXYZRPY[3], b2oXYZRPY[4], b2oXYZRPY[5]);
 
-    return b2oXYZRPY;
+    return true;
 }
 
-void GraphicsGrasp::getPointLoc(int row, int col, float &loc_x, float &loc_y, float &loc_z,
+bool GraphicsGrasp::getPointLoc(int row, int col, float &loc_x, float &loc_y, float &loc_z,
                                                         const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr& cloud) {
+
     // 获取外接矩形实际位置
     loc_x = cloud->points[row * cloud->width + col].x;
     loc_y = cloud->points[row * cloud->width + col].y;
     loc_z = cloud->points[row * cloud->width + col].z;
 
     /// 深度值不可用, 附近寻找可用深度
-    if (loc_z < 0.1 || loc_z > 2.0) {
+    if (loc_z < 0.1 || loc_z > 2.0 || qIsNaN(loc_z)) {
         const int size = 5; // 深度寻找范围
         // 右下侧
         for (int i = 0; i <= size; i++) {
             if (loc_z > 0.1 && loc_z < 2.0) break;
             for (int j = 0; j <= size; j++) {
                 loc_z = cloud->points[(row + i) * cloud->width + (col + j)].z;
-                printf("Find loc z: %f\n", loc_z);
+//                printf("Find loc z: %f\n", loc_z);
                 if (loc_z > 0.1 && loc_z < 2.0) break;
             }
         }
@@ -448,7 +460,7 @@ void GraphicsGrasp::getPointLoc(int row, int col, float &loc_x, float &loc_y, fl
             if (loc_z > 0.1 && loc_z < 2.0) break;
             for (int j = 0; j >= -size; j--) {
                 loc_z = cloud->points[(row + i) * cloud->width + (col + j)].z;
-                printf("Find loc z: %f\n", loc_z);
+//                printf("Find loc z: %f\n", loc_z);
                 if (loc_z > 0.1 && loc_z < 2.0) break;
             }
         }
@@ -457,7 +469,7 @@ void GraphicsGrasp::getPointLoc(int row, int col, float &loc_x, float &loc_y, fl
             if (loc_z > 0.1 && loc_z < 2.0) break;
             for (int j = 0; j <= size; j++) {
                 loc_z = cloud->points[(row + i) * cloud->width + (col + j)].z;
-                printf("Find loc z: %f\n", loc_z);
+//                printf("Find loc z: %f\n", loc_z);
                 if (loc_z > 0.1 && loc_z < 2.0) break;
             }
         }
@@ -466,17 +478,21 @@ void GraphicsGrasp::getPointLoc(int row, int col, float &loc_x, float &loc_y, fl
             if (loc_z > 0.1 && loc_z < 2.0) break;
             for (int j = 0; j >= -size; j--) {
                 loc_z = cloud->points[(row + i) * cloud->width + (col + j)].z;
-                printf("Find loc z: %f\n", loc_z);
+//                printf("Find loc z: %f\n", loc_z);
                 if (loc_z > 0.1 && loc_z < 2.0) break;
             }
         }
     }
 
     /// 未寻找到可用深度
-    if (loc_z < 0.1 || loc_z > 2.0) {
-        printf("row: %d col: %d loc_z: %f\n", row, col, loc_z);
-        throw std::runtime_error("\033[0;31mCenter point's depth is not valid!\033[0m\n");
+    if (loc_z < 0.1 || loc_z > 2.0 || qIsNaN(loc_z)) {
+        printf("[WARN] row: %d col: %d loc_z: %f\n", row, col, loc_z);
+        printf("\033[0;31m[WARN] Center point's depth is not valid!\033[0m\n");
+        return false;
+//        throw std::runtime_error("\033[0;31mCenter point's depth is not valid!\033[0m\n");
     }
+
+    return true;
 }
 
 void GraphicsGrasp::showWorkArea(cv::Mat &image) {
@@ -506,6 +522,9 @@ void GraphicsGrasp::showWorkArea(cv::Mat &image) {
     rectangle(frame, AreaMiddleLU, AreaMiddleRD, cv::Scalar(255, 178, 50), 1);
     rectangle(frame, AreaRightLU, AreaRightRD, cv::Scalar(255, 178, 50), 1);
     rectangle(frame, AreaLeftRightLU, AreaLeftRightRD, cv::Scalar(255, 178, 50), 1);
+
+    cv::Rect rect(cv::Point(LU_[0], LU_[1]), cv::Size(RD_[0]-LU_[0], RD_[1]-LU_[1]));
+    rectangle(frame, rect, cv::Scalar(0, 0, 255), 1);
 
     cv::imshow("Work Area", frame);
     cv::waitKey(0);

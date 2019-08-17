@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(cobotsys_examples)
+project(GraspC2_New)
 #set(CMAKE_BUILD_TYPE Release)
 
 set(CMAKE_CXX_STANDARD 11)

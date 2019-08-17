@@ -6,11 +6,11 @@ file(GLOB SOURCES
         src/*
         )
 
-add_executable(Grasp ${SOURCES} Grasp.cpp)
+add_executable(GraspC2 ${SOURCES} GraspC2.cpp)
 add_executable(Graphic src/GraphicsGrasp.cpp src/YoloDetector.cpp src/Darknet.cpp Graphic.cpp)
 add_executable(Camera src/GraphicsGrasp.cpp src/YoloDetector.cpp src/Darknet.cpp Camera.cpp)
 
-target_link_libraries(Grasp
+target_link_libraries(GraspC2
         ${CobotCore_LIBRARIES}
         ${PCL_LIBRARIES}
         ${TORCH_LIBRARIES}

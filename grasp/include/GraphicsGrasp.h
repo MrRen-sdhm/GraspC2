@@ -85,10 +85,10 @@ public:
     std::vector<int> findAimObjLR(std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID, int RowOrCol);
 
     /// 获取物体姿态和ID longOrshort: 0为长边 leftOrRight: 0为左臂
-    static std::vector<double> getObjPose(cv::RotatedRect& RotRect,
-          const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr& cloud, int juggleOrCube, int longOrshortint, int leftOrRight);
+    bool getObjPose(cv::RotatedRect& RotRect, std::vector<double> &b2oXYZRPY,
+            const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr& cloud, int juggleOrCube, int longOrshort, int leftOrRight);
 
-    static void getPointLoc (int row, int col, float &loc_x, float &loc_y, float &loc_z,
+    bool getPointLoc (int row, int col, float &loc_x, float &loc_y, float &loc_z,
                              const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr& cloud);
 
     /**
@@ -111,9 +111,9 @@ public:
     /// 工作区域划分
     std::vector<int> LU_ = {100, 240}; // 桌面区域左上角点 (x, y)=(col, row)
     std::vector<int> RD_ = {730, 540}; // 桌面区域右下角点 (x, y)=(col, row)
-    const float LeftOrRightThresh = 420.0; // 左右臂分工阈值, 列数小于阈值为左臂管辖
-    const float WorkAreaThreshL = 250.0; // 左侧工作区域分割阈值
-    const float WorkAreaThreshR = 600.0; // 右侧工作区域分割阈值
+    const float LeftOrRightThresh = 390.0; // 左右臂分工阈值, 列数小于阈值为左臂管辖
+    const float WorkAreaThreshL = 230.0; // 左侧工作区域分割阈值
+    const float WorkAreaThreshR = 550.0; // 右侧工作区域分割阈值
 private:
     /// GPD FIXME
 //    gpd::GraspDetectorPointNet* grasp_detector_; ///< used to run the GPD algorithm
