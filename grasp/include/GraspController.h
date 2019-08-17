@@ -6,6 +6,7 @@
 #include <iostream>
 #include <future>
 #include <stdlib.h>
+#include <sstream>
 
 #include <cobotsys/cobotsys_global_object_factory.h>
 #include <cobotsys/cobotsys_file_finder.h>
@@ -110,6 +111,16 @@ private:
     // 点云初始化
     void cloudInit();
 
+    void saveCloudAndImages();
+
+    static std::string getCurrentTimeStr()
+    {
+        time_t t = time(nullptr);
+        char ch[64] = {0};
+        strftime(ch, sizeof(ch)-1, "%m%d", localtime(&t));     //年-月-日 时-分-秒
+        return ch;
+    }
+
 /// ******************************* 抓取姿态生成 ******************************* ///
 private:
     // gpd相关参数
@@ -160,6 +171,8 @@ private:
     cv::Mat color, depth;
     pcl::PCDWriter writer;
     pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud;
+
+    bool saveFlag = true; // 保存标志位
 
     void cloud_viewer() {
         pcl::visualization::PCLVisualizer::Ptr visualizer(new pcl::visualization::PCLVisualizer("Cloud Viewer"));

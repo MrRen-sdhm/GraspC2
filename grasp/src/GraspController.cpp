@@ -307,6 +307,11 @@ bool GraspController::graspControlDual() {
 
         _graphicsGrasp->createPointCloud(color, depth, cloud); // 创建点云
 
+        if (saveFlag) { // 每次运行程序保存一次数据
+            saveCloudAndImages();
+            saveFlag = false;
+        }
+
         printf("\033[0;31m%s\033[0m\n", "=================================== 目标检测 ================================");
 
         const int juggleOrCube = 0; /// 0为积木, 1为立方体
@@ -323,13 +328,8 @@ bool GraspController::graspControlDual() {
             RotRectsAndID = _graphicsGrasp->detectGraspYolo(color, 200, false);
         } else if (juggleOrCube == 1) {
             /// 带孔正方体检测
-            RotRectsAndID = _graphicsGrasp->detectBigObj(color, 200, false);
+            RotRectsAndID = _graphicsGrasp->detectBigObj(color, cloud, 200, false);
         }
-
-//        writer.writeBinary("/home/hustac/test.pcd", *cloud);
-//        cv::imwrite("/home/hustac/test.jpg", color);
-//        cv::imwrite("/home/hustac/test.png", depth);
-//        exit(0);
 
         printf("\033[0;31m%s\033[0m\n", "================================= 生成移动任务 ===============================");
 
@@ -926,4 +926,45 @@ void GraspController::destoryTaskThreads() {
         _handControlThread.join();
         std::puts("\n结束第三阶段线程");
     }
+}
+
+void GraspController::saveCloudAndImages()
+{
+    std::string baseName, cloudName, colorName, depthName;
+    std::ostringstream oss;
+    std::vector<int> params;
+    int frame = 0;
+
+    params.push_back(cv::IMWRITE_JPEG_QUALITY);
+    params.push_back(100);
+    params.push_back(cv::IMWRITE_PNG_COMPRESSION);
+    params.push_back(1);
+    params.push_back(cv::IMWRITE_PNG_STRATEGY);
+    params.push_back(cv::IMWRITE_PNG_STRATEGY_RLE);
+    params.push_back(0);
+
+    while (true) {
+        oss.str("");
+        oss << std::setfill('0') << std::setw(2) << frame;
+        baseName = oss.str();
+        cloudName = "../../../grasp/data/images/" + baseName + "_cloud_" + getCurrentTimeStr() + ".pcd";
+        colorName = "../../../grasp/data/images/" + baseName + "_color_" + getCurrentTimeStr() + ".jpg";
+        depthName = "../../../grasp/data/images/" + baseName + "_depth_" + getCurrentTimeStr() + ".png";
+
+        if ((access(cloudName.c_str(), 0)) == 0) { // 0已存在,-1不存在
+            frame++;
+        }
+        else {
+            break;
+        }
+    }
+
+    printf("%s\n", ("[INFO] Saving cloud: " + cloudName).c_str());
+    writer.writeBinary(cloudName, *cloud);
+    printf("%s\n", ("[INFO] Saving color: " + cloudName).c_str());
+    cv::imwrite(colorName, color, params);
+    printf("%s\n", ("[INFO] Saving depth: " + depthName).c_str());
+    cv::imwrite(depthName, depth, params);
+
+    printf("[INFO] Saving complete!\n");
 }

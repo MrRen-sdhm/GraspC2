@@ -3,26 +3,28 @@
 //
 #include "include/GraphicsGrasp.h"
 
-void image_process(std::shared_ptr<GraphicsGrasp> _graphicsGrasp, cv::Mat color, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud) {
+void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat color, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud) {
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID, RotRectsAndIDTop;
     std::vector<double> Pose;
 
-    const int juggleOrCube = 0; /// 0为积木, 1为立方体
+    const int juggleOrCube = 1; /// 0为积木, 1为立方体
 
     if (juggleOrCube == 0) {
         /// Yolo积木检测
         RotRectsAndID = _graphicsGrasp->detectGraspYolo(color, 200, 1);
     } else if (juggleOrCube == 1) {
         /// 正方体/球检测
-        cv::RotatedRect BigBallRect, BigCubeRect;
+        std::pair<cv::RotatedRect, int> BigBallRect, BigCubeRect;
 
-//        if(_graphicsGrasp->detectBigBall(color, BigBallRect)) {
-//            RotRectsAndID.first.push_back(BigBallRect);
-//        }
-
-        if(_graphicsGrasp->detectBigCube(color, BigCubeRect)) {
-            RotRectsAndID.first.push_back(BigCubeRect);
+        if(_graphicsGrasp->detectBigBall(color, cloud, BigBallRect, true)) {
+            RotRectsAndID.first.push_back(BigBallRect.first);
+            RotRectsAndID.second.push_back(BigBallRect.second);
         }
+
+//        if(_graphicsGrasp->detectBigCube(color, cloud, BigCubeRect, true)) {
+//            RotRectsAndID.first.push_back(BigCubeRect.first);
+//            RotRectsAndID.second.push_back(BigCubeRect.second);
+//        }
     }
 
 #if 1  /// 左右臂目标物体确定
@@ -39,12 +41,13 @@ void image_process(std::shared_ptr<GraphicsGrasp> _graphicsGrasp, cv::Mat color,
 
             int leftOrRight = ((int) RotRectsAndID.first[indicesLr].center.x < 410) ? 0 : 1;
 
-            bool ret = _graphicsGrasp->getObjPose(RotRectsAndID.first[indicesLr], Pose, cloud, juggleOrCube, 0, leftOrRight);
+            if(_graphicsGrasp->getObjPose(RotRectsAndID.first[indicesLr], Pose, cloud, juggleOrCube, 0, leftOrRight)) {
 
-            printf("[INFO] 待抓取物体信息 ID:[%d] Angle:[%f] left/right[%d] Pose:[%f,%f,%f,%f,%f,%f]\n",
-                   RotRectsAndID.second[indicesLr],
-                   RotRectsAndID.first[indicesLr].angle, leftOrRight, Pose[0], Pose[1],
-                   Pose[2], Pose[3], Pose[4], Pose[5]);
+                printf("[INFO] 待抓取物体信息 ID:[%d] Angle:[%f] left/right[%d] Pose:[%f,%f,%f,%f,%f,%f]\n",
+                       RotRectsAndID.second[indicesLr],
+                       RotRectsAndID.first[indicesLr].angle, leftOrRight, Pose[0], Pose[1],
+                       Pose[2], Pose[3], Pose[4], Pose[5]);
+            }
 
             /// 显示目标物体外接矩形
             cv::Mat resized;
@@ -87,6 +90,7 @@ void image_process(std::shared_ptr<GraphicsGrasp> _graphicsGrasp, cv::Mat color,
         cv::circle(resized, RotRectsAndID.first[i].center, 1, cv::Scalar(0, 0, 255), 2);
     }
 
+    cv::imwrite("/home/hustac/result.jpg", resized);
     cv::imshow("roi_minAreaRect", resized);
     cv::waitKey(0);
 
@@ -108,11 +112,11 @@ int main(int argc, char** argv)
 
     cv::Mat color, depth;
 
-    color = cv::imread("../../../grasp/data/images/ball5.jpg");
-    depth = cv::imread("../../../grasp/data/images/cube1.png", -1);
+    color = cv::imread("../../../grasp/data/images/ball1.jpg");
+    depth = cv::imread("../../../grasp/data/images/depth.png", -1);
 
-    color = cv::imread("/home/hustac/test.jpg");
-    depth = cv::imread("/home/hustac/test.png", -1);
+//    color = cv::imread("/home/hustac/test.jpg");
+//    depth = cv::imread("/home/hustac/test.png", -1);
 
 //    _graphicsGrasp->showWorkArea(color); // 显示工作区域
 

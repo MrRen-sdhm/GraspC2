@@ -23,28 +23,19 @@ public:
     YoloDetector(const std::string& config_file, const std::string& weights_file);
 
     // Get the bounding boxes of objects
-    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> getRotRectsAndID(cv::Mat &image, cv::Rect rect, int thresh, int show);
+    void detectObj(cv::Mat &image, std::vector<int> &classIds, std::vector<float> &confidences,
+                                                    std::vector<cv::Rect> &boxes, cv::Rect rect, int thresh, int show);
 
-    bool calRotatedRect(cv::Mat img_roi, cv::Mat mask, const cv::Rect& box,
-                                                    std::vector<cv::RotatedRect> &rotRects, int juggleOrCube, int show);
+    // Draw the predicted bounding box
+    void drawPred(int classId, float conf, int left, int top, int right, int bottom, cv::Mat& frame);
 
 private:
     // init the network
     void init(const std::string& config_file, const std::string& weights_file);
 
-    // show: 1-全部显示 2-逐个显示 其他-不显示
-    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> postprocess(cv::Mat& frame, int thresh, int show);
-
-    // Draw the predicted bounding box
-        static void drawPred(int classId, float conf, int left, int top, int right, int bottom, cv::Mat& frame,
-                  std::vector<std::string> classes);
-
     // yolo相关参数
     std::shared_ptr<Darknet> net_;
     torch::Device* device_{};
-    std::vector<int> classIds_;
-    std::vector<float> confidences_;
-    std::vector<cv::Rect> boxes_;
 
     float confThreshold_ = 0.2; // Confidence threshold
     float nmsThreshold_ = 0.4;  // Non-maximum suppression threshold

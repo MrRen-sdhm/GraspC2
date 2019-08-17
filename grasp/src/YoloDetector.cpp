@@ -17,7 +17,6 @@ void YoloDetector::init(const std::string& config_file, const std::string& weigh
         device_type = torch::kCPU;
     }
 
-//    device_ = std::make_shared<torch::Device>(device_type);
     device_ = new torch::Device(device_type);
 
     net_ = std::make_shared<Darknet>(config_file.c_str(), device_);
@@ -36,8 +35,8 @@ void YoloDetector::init(const std::string& config_file, const std::string& weigh
     std::cout << "[INFO] Yolo detector initialize done." << endl;
 }
 
-std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloDetector::getRotRectsAndID(cv::Mat &image,
-                                                                                cv::Rect rect, int thresh, int show) {
+void YoloDetector::detectObj(cv::Mat &image, std::vector<int> &classIds,
+                    std::vector<float> &confidences, std::vector<cv::Rect> &boxes, cv::Rect rect, int thresh, int show) {
 
     cv::Mat resized_image, img_float;
     cv::Mat image_copy = image.clone();
@@ -76,9 +75,9 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloDetector::getRotRe
         auto result_data = result.accessor<float, 2>();
 
         // 清空数据
-        classIds_.clear();
-        confidences_.clear();
-        boxes_.clear();
+        classIds.clear();
+        confidences.clear();
+        boxes.clear();
 
         // 保存结果, 以便后续处理
         for (size_t i = 0; i < result.size(0); i++)
@@ -91,17 +90,17 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloDetector::getRotRe
             // 滤除置信度较低的, Darknet中滤除的是最高置信度, 这里取最低置信度
             if (result_data[i][6] > confThreshold_ &&
                             top > rect.y && left > rect.x && left+width < rect.x + rect.width) { // 滤除不在工作范围内的
-                classIds_.push_back(result_data[i][7]);
-                confidences_.push_back(result_data[i][6]);
-                boxes_.emplace_back(left, top, width, height);
+                classIds.push_back(result_data[i][7]);
+                confidences.push_back(result_data[i][6]);
+                boxes.emplace_back(left, top, width, height);
             }
         }
 
-        std::cout << "[INFO] Detected " << boxes_.size() << " objects by Yolo." << endl;
+        std::cout << "[INFO] Detected " << boxes.size() << " objects by Yolo." << endl;
 
-        cout << "[INFO] Class: " << classIds_ << endl;
-        cout << "[INFO] Conf: " << confidences_ << endl;
-        cout << "[INFO] Boxes: " << boxes_ << endl << endl << endl;
+        cout << "[INFO] Class: " << classIds << endl;
+        cout << "[INFO] Conf: " << confidences << endl;
+        cout << "[INFO] Boxes: " << boxes << endl << endl << endl;
 
         if(show == 1 | show == 2) {
             // 保存图片
@@ -117,193 +116,13 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloDetector::getRotRe
         }
 //        cv::imwrite("/home/hustac/out-det.jpg", image);
     }
-
-    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID;
-    RotRectsAndID = postprocess(image, thresh, show); // Remove the bounding boxes with low confidence
-    return RotRectsAndID;
-}
-
-std::pair<std::vector<cv::RotatedRect>, std::vector<int>> YoloDetector::postprocess(cv::Mat& frame, int thresh, int show)
-{
-    std::vector<cv::RotatedRect> RotatedRects;
-    std::vector<int> RectsID;
-    cv::Mat frame_copy = frame.clone();
-
-    for (size_t i = 0; i < boxes_.size(); ++i) // 处理各检测到的物体
-    {
-        cv::Rect box = boxes_[i];
-
-//        if(box.height * box.width < 40*40 || box.height * box.width > 200*200) { // FIXME
-//            printf("[WARN] RotRect’s size is not valid: %f", box.height * box.width);
-//            continue; // NOTE: 滤除过大/小的物体
-//        }
-
-        cv::Mat img_roi = frame.clone()(box);
-        if(show == 1 | show == 2) cv::imshow("roi", img_roi);
-
-        cv::Mat img_hsv;
-        cv::cvtColor(img_roi, img_hsv, CV_BGR2HSV);
-        if(show == 1 | show == 2) cv::imshow("hsv", img_hsv);
-
-        /// HSV阈值分割获取掩码
-        int thresh_v_high = thresh; // V通道阈值
-        cv::Mat mask = cv::Mat::zeros(img_hsv.rows, img_hsv.cols, CV_8U); // 掩码
-        for(int r = 0; r < img_hsv.rows; ++r)
-        {
-            auto *itM = mask.ptr<uint8_t>(r);
-            const cv::Vec3b *itH = img_hsv.ptr<cv::Vec3b>(r);
-
-            for(int c = 0; c < img_hsv.cols; ++c, ++itM, ++itH)
-            {
-                if (itH->val[0] < 35 && itH->val[2] > thresh_v_high) { /// HSV阈值分割 顶部>255 旁边>120
-                    *itM = 255;
-                }
-            }
-        }
-        if(show == 1 | show == 2) cv::imshow("mask", mask);
-
-        /// 计算最小外接矩形
-        std::vector<cv::RotatedRect> rotRects;
-        if (calRotatedRect(img_roi, mask, box, rotRects, 0, show)) {
-            RotatedRects.push_back(rotRects[0]); // 存储外接矩形, 每个积木仅有一个外接矩形
-            RectsID.push_back(classIds_[i]); // 存储外接矩形对应的物体类别
-
-            if(show == 1 | show == 2) std::cout << "minAreaRectOut: center:" << rotRects[0].center << " angle: " <<
-                                                rotRects[0].angle << " size: " << rotRects[0].size << std::endl;
-        }
-
-        if(show == 1 | show == 2) drawPred(classIds_[i], confidences_[i], box.x, box.y, box.x + box.width,
-                box.y + box.height, frame_copy, get_classes_vec()); // 画边框
-
-        if(show == 2) {
-            cv::imshow("result", frame_copy);
-            cv::waitKey(0);
-        }
-    }
-
-    if(show == 1) {
-        cv::imshow("result", frame_copy);
-        cv::waitKey(0);
-    }
-
-    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RectsAndID {RotatedRects, RectsID};
-
-    return RectsAndID;
-}
-
-bool YoloDetector::calRotatedRect(cv::Mat img_roi, cv::Mat mask, const cv::Rect& box,
-                                                    std::vector<cv::RotatedRect> &rotRects, int juggleOrCube, int show){
-    std::vector<int> bigAreaIdx;
-
-    /// 轮廓查找
-    std::vector<std::vector<cv::Point> > contours;
-    std::vector<cv::Vec4i> hierarchy;
-    findContours(mask, contours, hierarchy, cv::RETR_TREE, cv:: CHAIN_APPROX_SIMPLE);
-
-    if (contours.empty()) return false;
-
-    int index = 0;
-    for (; index >= 0; index = hierarchy[index][0]) {
-        drawContours(img_roi, contours, index, cv::Scalar(0, 255, 255), 1, 8, hierarchy);
-    }
-    //        cv::imshow("roi_Contours", img_roi);
-
-    /// 查找最大轮廓
-    double max_area = 0;
-    int maxAreaIdx = 0;
-    for (int index = (int)contours.size() - 1; index >= 0; index--) {
-        double tmp_area = fabs(contourArea(contours[index]));
-
-        // 查找面积很大的轮廓
-        if (tmp_area > areaThresh) {
-            bigAreaIdx.push_back(index);
-        }
-//        printf("[INFO] tmp_area: %f\n", tmp_area);
-
-        if (tmp_area > max_area) {
-            max_area = tmp_area;
-            maxAreaIdx = index; // 记录最大轮廓的索引号
-        }
-    }
-
-    printf("[INFO] Max area: %f\n", max_area);
-
-    for (size_t i = 0; i < bigAreaIdx.size(); i++) {
-        printf("[INFO] Big Area[%zu]: %f\n", i, fabs(contourArea(contours[bigAreaIdx[i]])));
-    }
-
-    std::vector<cv::Point> contourlist; // 轮廓列表
-    /// 最大轮廓的最小外接矩形
-    if (juggleOrCube == 0) { // 积木的外接矩形, 仅一个
-        if (max_area > areaThresh) {
-            printf("\033[0;32m[WARN] RotRect area is too large: %f at[x-%d, y-%d]\033[0m\n", max_area, box.x, box.y);
-
-            return  false; // 面积过大, 不是积木, 积木面积最大值在 888 左右
-        }
-
-        printf("[INFO] Juggle area: %f\n", fabs(contourArea(contours[maxAreaIdx])));
-
-        contourlist = contours[maxAreaIdx]; // 最大轮廓
-        rotRects.push_back(minAreaRect(contourlist));
-        // 获取整张图片下的中心位置
-        rotRects[0].center.x += box.x;
-        rotRects[0].center.y += box.y;
-
-    } else if (juggleOrCube == 1) { // 所有立方体的外接矩形
-        if (bigAreaIdx.empty())
-            return false; // 未找到立方体
-
-        for (size_t idx = 0; idx < bigAreaIdx.size(); idx++) {
-            contourlist = contours[bigAreaIdx[idx]];
-            printf("[INFO] Cube area: %f\n", fabs(contourArea(contourlist)));
-
-            rotRects.push_back(minAreaRect(contourlist));
-
-            // 外接矩形的四个角点
-            cv::Point2f P[4];
-            rotRects[idx].points(P);
-            for (int j = 0; j <= 3; j++) {
-                line(img_roi, P[j], P[(j + 1) % 4], cv::Scalar(0, 255, 0), 2);
-            }
-            cv::circle(img_roi, P[0], 1, cv::Scalar(0, 255, 255), 2);
-            cv::circle(img_roi, P[2], 1, cv::Scalar(0, 255, 255), 2);
-            cv::circle(img_roi, P[1], 1, cv::Scalar(0, 0, 0), 2);
-            cv::circle(img_roi, P[3], 1, cv::Scalar(0, 0, 0), 2);
-
-//            cout << "四个角点: " << P[0] << endl << P[1] << endl << P[2] << endl << P[3] << endl << endl;
-
-            cv::circle(img_roi, rotRects[idx].center, 1, cv::Scalar(0, 0, 255), 2);
-
-            cv::Point2f P1;
-            P1.x = P[0].x + (P[2].x - P[0].x) / 8;
-            P1.y = P[0].y + (P[2].y - P[0].y) / 8;
-            cv::circle(img_roi, P1, 1, cv::Scalar(255, 0, 0), 2);
-
-            cv::Point2f P2;
-            P2.x = P[0].x + (P[2].x - P[0].x) * 7 / 8;
-            P2.y = P[0].y + (P[2].y - P[0].y) * 7 / 8;
-            cv::circle(img_roi, P2, 1, cv::Scalar(0, 255, 0), 2);
-
-            // 重新计算中心点
-            cv::Point2f P0;
-            P0.x = P1.x + (P2.x - P1.x) / 2;
-            P0.y = P1.y + (P2.y - P1.y) / 2;
-            cv::circle(img_roi, P0, 1, cv::Scalar(0, 0, 255), 2);
-
-            // 获取整张图片下的中心位置
-            rotRects[idx].center.x += box.x;
-            rotRects[idx].center.y += box.y;
-        }
-    }
-
-    if(show == 1) cv::imshow("roi_minAreaRect", img_roi);
-
-    return true;
 }
 
 // Draw the predicted bounding box
-void YoloDetector::drawPred(int classId, float conf, int left, int top, int right, int bottom, cv::Mat& frame, std::vector<std::string> classes)
+void YoloDetector::drawPred(int classId, float conf, int left, int top, int right, int bottom, cv::Mat& frame)
 {
+    std::vector<std::string> classes = get_classes_vec();
+
     // Draw a rectangle displaying the bounding box
     rectangle(frame, cv::Point(left, top), cv::Point(right, bottom), cv::Scalar(255, 178, 50), 2); // 边框
 

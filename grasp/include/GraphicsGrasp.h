@@ -65,13 +65,24 @@ class GraphicsGrasp {
 public:
     GraphicsGrasp();
 
+    // show: 1-全部显示 2-逐个显示 其他-不显示
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> detectGraspYolo(cv::Mat &image, int thresh, int show);
 
-    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> detectBigObj(cv::Mat &image, int thresh, int show);
+    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> getRotRectsAndID(cv::Mat &image,
+                                                std::vector<int> &classIds, std::vector<float> &confidences,
+                                                std::vector<cv::Rect> &boxes, cv::Rect rect, int thresh, int show);
 
-    int detectBigBall(cv::Mat &image, cv::RotatedRect &RotatedRect); // 1为检测到, -1 为未检测到
-    int detectBigCube(cv::Mat &image, cv::RotatedRect &RotatedRect); // 1为检测到, -1 为未检测到
+    bool calRotatedRect(cv::Mat img_roi, cv::Mat mask, const cv::Rect& box,
+                                       std::vector<cv::RotatedRect> &rotRects, int juggleOrCube, int show);
 
+    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> detectBigObj(cv::Mat &image,
+                                                pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, int thresh, int show);
+
+    int detectBigBall(cv::Mat &image, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud,
+                                std::pair<cv::RotatedRect, int> &BigRotRectsAndID, bool show); // 1为检测到, -1 为未检测到
+
+    int detectBigCube(cv::Mat &image, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud,
+                                std::pair<cv::RotatedRect, int> &BigRotRectsAndID, bool show); // 1为检测到, -1 为未检测到
     /**
      * calcRealCoor  输入kinect点云图像抓取姿态，依据手眼标定结果，输出手臂基坐标系下抓取姿态
      * @param rotMatrix  相机坐标系下抓取姿态的旋转矩阵
@@ -79,7 +90,7 @@ public:
      * @param leftOrRight  0: 左臂 1：右臂
      * @return 手臂基坐标系下抓取姿态(Eigen::Isometry3d格式)
      */
-    static std::vector<double> calcRealCoor(const Eigen::Matrix3d& rotMatrix, const Eigen::Vector3d& translation, int leftOrRight);
+    static std::vector<double> calcRealCoor(std::vector<float> coorRaw, int leftOrRight);
 
     /// 寻找左右侧的目标物体, 左侧找最左/上边的, 右侧找最右/下边的, RowOrCol: 1为左右最值 0为上下最值
     std::vector<int> findAimObjLR(std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID, int RowOrCol);
@@ -114,6 +125,13 @@ public:
     const float LeftOrRightThresh = 390.0; // 左右臂分工阈值, 列数小于阈值为左臂管辖
     const float WorkAreaThreshL = 230.0; // 左侧工作区域分割阈值
     const float WorkAreaThreshR = 550.0; // 右侧工作区域分割阈值
+
+private:
+    const double areaThresh = 1300.0; // 积木与立方体轮廓面积区分阈值
+    const double smallCubeThresh = 0.6; // 在机器人坐标系下, 小立方体x方向坐标阈值 FIXME
+    const double bigCubeThresh = 0.6; // 在机器人坐标系下, 大立方体x方向坐标阈值
+    const double bigBallThresh = 0.6; // 在机器人坐标系下, 大球x方向坐标阈值
+
 private:
     /// GPD FIXME
 //    gpd::GraspDetectorPointNet* grasp_detector_; ///< used to run the GPD algorithm
