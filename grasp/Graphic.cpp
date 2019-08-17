@@ -7,7 +7,7 @@ void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID, RotRectsAndIDTop;
     std::vector<double> Pose;
 
-    const int juggleOrCube = 1; /// 0为积木, 1为立方体
+    const int juggleOrCube = 0; /// 0为积木, 1为立方体
 
     if (juggleOrCube == 0) {
         /// Yolo积木检测
@@ -131,8 +131,8 @@ int main(int argc, char** argv)
 
     cv::Mat color, depth;
 
-    color = cv::imread("../../../grasp/data/images/00_color_0817.jpg");
-    depth = cv::imread("../../../grasp/data/images/00_depth_0817.png", -1);
+    color = cv::imread("../../../grasp/data/images/yolo.jpg");
+    depth = cv::imread("../../../grasp/data/images/04_depth_0817.png", -1);
 
 //    color = cv::imread("/home/hustac/test.jpg");
 //    depth = cv::imread("/home/hustac/test.png", -1);

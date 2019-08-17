@@ -17,7 +17,7 @@ using namespace cv;
 namespace {
     std::string gpd_cfg_file = "../../../Grasp/Sources/pointnet_params.cfg";
     std::string yolo_config_filename = "../../../grasp/data/yolov3-voc.cfg";
-    std::string yolo_weights_filename ="../../../grasp/data/yolov3-voc_900.weights";
+    std::string yolo_weights_filename ="../../../grasp/data/yolov3-voc_7000.weights";
 }
 
 GraphicsGrasp::GraphicsGrasp()
@@ -624,12 +624,6 @@ bool GraphicsGrasp::getObjPose(cv::RotatedRect& RotRect, std::vector<double> &b2
 
     printf("[INFO] Center angle correct: %f\n", center_angle);
 
-    // 归一化到[-90, 90], 走最近的角度
-    if (center_angle < -90) center_angle += 180;
-    else if (center_angle > 90) center_angle -= 180;
-
-    printf("[INFO] Center angle short: %f\n", center_angle);
-
     printf("[INFO] Center(相机坐标系) [row:%d col:%d] x:%f y:%f z:%f Angle:%f\n", row, col, center_x, center_y, center_z, center_angle);
 
     std::vector<float> coorRaw = {center_x, center_y, center_z};
@@ -639,17 +633,25 @@ bool GraphicsGrasp::getObjPose(cv::RotatedRect& RotRect, std::vector<double> &b2
            b2oXYZRPY[2], b2oXYZRPY[3], b2oXYZRPY[4], b2oXYZRPY[5]);
 
     /// 修改姿态
-    float coeff = 1.0; // 角度校正系数
-    if (center_angle > 90) coeff = 0.75;
-    else if (center_angle < 90) coeff = 1.25;
+    float coeff = 1.0; // 角度校正系数  [0,-90] 0.7 [-90, -180] 0.5
+//    if (center_angle < 0 && center_angle > -90) {
+//        coeff = 0.75;
+//        center_angle = center_angle*coeff;
+//    }
+//    else if (center_angle < -90 && center_angle > -180) {
+//        coeff = 0.5;
+//        center_angle = -90 + (center_angle - (-90)) * coeff;
+//    }
+
+    printf("[INFO] Center angle finetune: %f\n", center_angle);
     
     if (leftOrRight == 0) {
         b2oXYZRPY[3] = 1.54;
-        b2oXYZRPY[4] = D2R(center_angle * coeff);  // 左臂正值容易到达, 加180度 FIXME:当前未处理
+        b2oXYZRPY[4] = D2R(center_angle);  // NOTE: 此处存储的是关节角
         b2oXYZRPY[5] = 1.54;
     } else if (leftOrRight == 1) {
         b2oXYZRPY[3] = 1.54;
-        b2oXYZRPY[4] = D2R(center_angle * coeff);  // // 右臂负值更容易到达, 不处理
+        b2oXYZRPY[4] = D2R(center_angle);  // NOTE: 此处存储的是关节角
         b2oXYZRPY[5] = -1.54;
     }
 

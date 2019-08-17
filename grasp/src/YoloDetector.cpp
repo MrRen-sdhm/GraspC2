@@ -89,7 +89,7 @@ void YoloDetector::detectObj(cv::Mat &image, std::vector<int> &classIds,
 
             // 滤除置信度较低的, Darknet中滤除的是最高置信度, 这里取最低置信度
             if (result_data[i][6] > confThreshold_ &&
-                            top > rect.y && left > rect.x && left+width < rect.x + rect.width) { // 滤除不在工作范围内的
+                            top > rect.y && left > rect.x && left + width < rect.x + rect.width) { // 滤除不在工作范围内的
                 classIds.push_back(result_data[i][7]);
                 confidences.push_back(result_data[i][6]);
                 boxes.emplace_back(left, top, width, height);

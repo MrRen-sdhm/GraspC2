@@ -154,7 +154,7 @@ int main(int argc, char** argv)
 
             _graphicsGrasp->showWorkArea(color); // 显示工作区域
 
-//            image_process(_graphicsGrasp, color, cloud);
+            image_process(_graphicsGrasp, color, cloud);
 
             cv::Mat resized;
             std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotatedRectsAndID;

@@ -197,28 +197,43 @@ private:
     const double Acc_Lv1 = 0.05;
     const double Vel_Lv2 = 1.5;
     const double Acc_Lv2 = 0.5;
-    // 用于移动一个关节
-    const double Vel_Lv3 = 2.5;
-    const double Acc_Lv3 = 1.5;
+
+    // 用于移动关节角
+    const double Vel_Lv3 = 5.0;
+    const double Acc_Lv3 = 5.0;
 
     bool BallPicked = false;
 
     /// 垂直抓取相关位置
     // 起始位置
-    const std::vector<double> IniteJoints = {1.62, 0.360, -1.92, -0.64, 0.026, 0.00,
-                                            -1.62, -0.360, 1.92, 0.64, -0.026, 0.00};
+//    const std::vector<double> IniteJointsOld = {1.62, 0.360, -1.92, -0.64, 0.026, 0.00,
+//                                                -1.62, -0.360, 1.92, 0.64, -0.026, 0.00};
 
-    const std::vector<double> IniteJointsL = {1.62, 0.360, -1.92, -0.64, 0.026, 0.00};
+    const std::vector<double> IniteJointsOld = {D2R(92.819), D2R(20.626), D2R(-110.007), D2R(-36.669), D2R(1.488), D2R(-0.001),
+                                                D2R(-92.819), D2R(-20.626), D2R(110.007), D2R(36.669), D2R(-1.488), D2R(0.001)};
 
-    const std::vector<double> IniteJointsR = {-1.62, -0.360, 1.92, 0.64, -0.026, 0.00};
+    const std::vector<double> IniteJoints = {D2R(91.238), D2R(64.396), D2R(-37.523), D2R(-15.631), D2R(-1.713), D2R(5.382),
+                                             D2R(-91.238), D2R(-64.396), D2R(37.523), D2R(15.631), D2R(1.713), D2R(-5.382)};
+
+    const std::vector<double> IniteJointsL = {D2R(91.238), D2R(64.396), D2R(-37.523), D2R(-15.631), D2R(-1.713), D2R(5.382)};
+
+    const std::vector<double> IniteJointsR = {D2R(-91.238), D2R(-64.396), D2R(37.523), D2R(15.631), D2R(1.713), D2R(-5.382)};
+
+
+    // 积木抓取初始位置
+//    const std::vector<double> JuggleIniteJoints = {D2R(89.304), D2R(56.234), D2R(-110.007), D2R(-56.669), D2R(1.488), D2R(-20.0),
+//                                                   D2R(-89.304), D2R(-56.234), D2R(110.007), D2R(56.669), D2R(-1.488), D2R(20.0)};
+
+    const std::vector<double> JuggleIniteJoints = {D2R(89.948), D2R(65.239), D2R(-77.522), D2R(33.371), D2R(2.248), D2R(-171.430),
+                                                   D2R(-89.948), D2R(-65.239), D2R(77.522), D2R(-33.371), D2R(-2.248), D2R(171.430)};
 
     // 球体抓取初始位置
     const std::vector<double> BallIniteJoints = {1.62, 0.360, -1.92, -0.64, D2R(-30), 0.00,
                                                 -1.62, -0.360, 1.92, 0.64, D2R(27), 0.00}; // FIXME
 
     // 立方体抓取初始位置
-    const std::vector<double> CubeIniteJoints = {1.0, 0.360, -1.92, -0.64, D2R(-30), 0.00,
-                                                 -1.0, -0.360, 1.92, 0.64, D2R(27), 0.00}; // FIXME
+    const std::vector<double> CubeIniteJoints = {D2R(91.238), D2R(64.396), D2R(-37.523), D2R(-15.631), D2R(-30), D2R(5.382),
+                                                 D2R(-91.238), D2R(-64.396), D2R(37.523), D2R(15.631), D2R(27), D2R(-5.382)}; // FIXME
 
     // 中间位置
     const std::vector<double> MiddlePose = {1.62, 0.920, -1.92, -0.64, 0.026, 0.00,
@@ -237,7 +252,7 @@ private:
     const std::vector<double> PlaceJointsL3 = {D2R(91.459), D2R(52.591), D2R(-81.059), D2R(46.086), D2R(1.364), D2R(-97.236)};
 
     // 右侧放置位置1 FIXME
-    const std::vector<double> PlaceJointsR1 = {D2R(92.273), D2R(-34.699), D2R(121.205), D2R(-23.930), D2R(-2.178), D2R(97.334)};
+    const std::vector<double> PlaceJointsR1 = {D2R(-92.273), D2R(-34.699), D2R(121.205), D2R(-19.228), D2R(-2.178), D2R(97.334)};
 
     // 右侧放置位置2 FIXME
     const std::vector<double> PlaceJointsR2 = {D2R(-91.706), D2R(-44.431), D2R(98.776), D2R(-36.571), D2R(-1.611), D2R(97.276)};

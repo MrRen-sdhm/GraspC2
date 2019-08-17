@@ -41,8 +41,8 @@ private:
     float nmsThreshold_ = 0.4;  // Non-maximum suppression threshold
     int image_size_ = 608;  // Size of network's input image 416 608
     float box_scale_ = 1.1; // 边框尺寸缩放
-    static const int classes_num_ = 5;
-    std::string classes_[classes_num_]={"cube", "cubiod", "sphere", "triangular", "cylinder"};
+    static const int classes_num_ = 3;
+    std::string classes_[classes_num_]={"triangular", "cylinder", "cubiod"};
 
     std::vector<std::string> get_classes_vec() {
         std::vector<std::string> classes_vec(classes_, classes_ + classes_num_);
