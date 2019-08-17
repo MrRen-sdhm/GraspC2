@@ -280,6 +280,7 @@ bool GraspController::graspControlDual() {
     cloudInit();
 
     while (true) {
+        printf("\033[0;31m%s\033[0m\n", "================================== 采集图像 =================================");
         captureImage(-100); // 采集图像
 
         if (!ret) {
@@ -317,28 +318,31 @@ bool GraspController::graspControlDual() {
         const int juggleOrCube = 0; /// 0为积木, 1为立方体
 
         bool BigBallFlag = false, BigCubeFlag = false;
-        cv::RotatedRect BigBallRect, BigCubeRect;
+        std::pair<cv::RotatedRect, int> BigBallRect, BigCubeRect;
 
-        // FIXME 大型物体检测
-//        BigBallFlag = _graphicsGrasp->detectBigBall(color, BigBallRect);
-//        BigCubeFlag = _graphicsGrasp->detectBigCube(color, BigCubeRect);
+        // 球体检测
+        if (!BallPicked) BigBallFlag = _graphicsGrasp->detectBigBall(color, cloud, BigBallRect, 0);
 
-        if (juggleOrCube == 0) {
+        if (!BigBallFlag) { // 无球再检测立方体
+            BigCubeFlag = _graphicsGrasp->detectBigCube(color, cloud, BigCubeRect, 0);
+        }
+
+        if (juggleOrCube == 0 && !BigBallFlag) {
             /// Yolo积木检测
             RotRectsAndID = _graphicsGrasp->detectGraspYolo(color, 200, false);
         } else if (juggleOrCube == 1) {
             /// 带孔正方体检测
-            RotRectsAndID = _graphicsGrasp->detectBigObj(color, cloud, 200, false);
+//            RotRectsAndID = _graphicsGrasp->detectBigObj(color, cloud, 0, 200, false);
         }
 
         printf("\033[0;31m%s\033[0m\n", "================================= 生成移动任务 ===============================");
 
-        if (RotRectsAndID.first.empty()) {
-            printf("[ERROR] Did not get any rot rects!\n");
-            continue;
-        }
-
         if (!BigBallFlag && !BigCubeFlag) {
+            if (RotRectsAndID.first.empty()) {
+                printf("[ERROR] Did not get any rot rects!\n");
+                continue;
+            }
+
             // 确定两侧待抓取物体索引
             std::vector<int> AimObjIndicesLR = _graphicsGrasp->findAimObjLR(RotRectsAndID, 0);
 
@@ -427,7 +431,7 @@ bool GraspController::graspControlDual() {
             printf("\033[0;31m%s\033[0m\n", "================================= 手抓下降并抓取 ==============================");
 
             /// 修改姿态, 手臂垂直下降
-            targetPose = getRobotPose(); // 获取当前位置
+            targetPose = getRobotPose(2); // 获取双臂当前位置
             targetPose[0] += 0.02; // 左臂
             targetPose[6] -= 0.02; // 右臂
 //            targetPoseTmpL[0] += 0.02; // 左臂
@@ -476,11 +480,198 @@ bool GraspController::graspControlDual() {
 
             printf("\033[0;31m%s\033[0m\n\n\n",
                    "================================== 抓取成功 =================================");
-        } else if (BigBallFlag) { /// 有球体
-            int leftOrRight = (BigBallRect.center.x < _graphicsGrasp->LeftOrRightThresh) ? 0 : 1; // 简单处理左右手分工
-            std::vector<double> targetPose;
-            _graphicsGrasp->getObjPose(BigBallRect, targetPose, cloud, 0, 0, leftOrRight);
-            // TODO 抓取球体
+        }
+
+        if (BigBallFlag) { /// 有球体
+            printf("\033[0;33m[INFO] Detected big ball, begin to pick it up...\033[0m\n");
+
+            std::vector<double> targetPoseL, targetPoseR, targetPose;
+            if(_graphicsGrasp->getObjPose(BigBallRect.first, targetPoseL, cloud, 1, 0, 0) && // 两点法计算位置
+               _graphicsGrasp->getObjPose(BigBallRect.first, targetPoseR, cloud, 1, 0, 1)) {
+
+                MoveJoints(BallIniteJoints, Vel_Lv3, Acc_Lv3, 2); /// 移动到球抓取初始位置
+
+                printf("\033[0;31m%s\033[0m\n\n\n", "================================= 准备抓取球体 ================================");
+                /// 左臂准备抓取球体
+                std::vector<double> targetPoseTmpL = targetPoseL; // 目标位置副本
+
+                printf("[INFO] 待抓取球体信息 ID:[%d] LeftOrRight[%d] Pose:[%f,%f,%f,%f,%f,%f]\n\n",
+                       BigBallRect.second, 0, targetPoseTmpL[0], targetPoseTmpL[1], targetPoseTmpL[2],
+                       targetPoseTmpL[3], targetPoseTmpL[4], targetPoseTmpL[5]);
+
+                targetPoseTmpL = getRobotPose(0); // 获取当前位置
+                targetPoseTmpL[0] += 0.1; // x移动到球下半部
+                targetPoseTmpL[1] = targetPoseL[1] - 0.00; // y移动到球所在位置, 向前微调
+                targetPoseTmpL[2] = targetPoseL[2] + 0.16; // z 移动到球附近
+
+                cout << "[INFO] targetPose[BigBall] Left: " << targetPoseTmpL << endl << endl;
+
+                /// 右臂准备抓取球体
+                std::vector<double> targetPoseTmpR = targetPoseR; // 目标位置副本
+
+                printf("[INFO] 待抓取球体信息 ID:[%d] LeftOrRight[%d] Pose:[%f,%f,%f,%f,%f,%f]\n\n",
+                       BigBallRect.second, 1, targetPoseTmpR[0], targetPoseTmpR[1], targetPoseTmpR[2],
+                       targetPoseTmpR[3], targetPoseTmpR[4], targetPoseTmpR[5]);
+
+                targetPoseTmpR = getRobotPose(1); // 获取当前位置
+                targetPoseTmpR[0] -= 0.1; // x移动到球下半部
+                targetPoseTmpR[1] = targetPoseR[1] + 0.00; // y移动到球所在位置, 向前微调
+                targetPoseTmpR[2] = targetPoseR[2] + 0.16; // z 移动到球附近
+
+                cout << "[INFO] targetPose[BigBall] Right: " << targetPoseTmpR << endl << endl;
+
+                mergeTargetLR(targetPoseTmpL, targetPoseTmpR, targetPose);
+
+                MovePose(targetPose, Vel_Lv1, Acc_Lv1, 2);
+
+                printf("\033[0;31m%s\033[0m\n\n\n", "================================== 抬起球体 =================================");
+
+                /// 左臂抬起
+                targetPoseTmpL = getRobotPose(0); // 获取当前位置
+                targetPoseTmpL[0] -= 0.1;
+
+                /// 右臂抬起
+                targetPoseTmpR = getRobotPose(1); // 获取当前位置
+                targetPoseTmpR[0] += 0.1;
+
+                mergeTargetLR(targetPoseTmpL, targetPoseTmpR, targetPose);
+                MovePose(targetPose, Vel_Lv1, Acc_Lv1, 2);
+
+                printf("\033[0;31m%s\033[0m\n\n\n", "================================== 拖回球体 =================================");
+
+                /// 左臂平移
+                targetPoseTmpL = getRobotPose(0); // 获取当前位置 -0.246
+//                if (targetPoseTmpL[1] < -0.35) targetPoseTmpL[1] += 0.1;
+                targetPoseTmpL[1]  = -0.37;
+
+                /// 右臂平移
+                targetPoseTmpR = getRobotPose(1); // 获取当前位置
+//                if (targetPoseTmpR[1] > 0.35) targetPoseTmpR[1] -= 0.1;
+                targetPoseTmpR[1] = -0.37;
+
+                mergeTargetLR(targetPoseTmpL, targetPoseTmpR, targetPose);
+                MovePose(targetPose, Vel_Lv1, Acc_Lv1, 2);
+
+                printf("\033[0;31m%s\033[0m\n\n\n", "================================== 平移球体 =================================");
+
+                /// 左臂平移
+                targetPoseTmpL = getRobotPose(0); // 获取当前位置
+                targetPoseTmpL[2] -= 0.19;
+
+                /// 右臂平移
+                targetPoseTmpR = getRobotPose(1); // 获取当前位置
+                targetPoseTmpR[2] += 0.19;
+
+                mergeTargetLR(targetPoseTmpL, targetPoseTmpR, targetPose);
+                MovePose(targetPose, Vel_Lv1, Acc_Lv1, 2);
+
+                printf("\033[0;31m%s\033[0m\n\n\n", "================================== 放下球体 =================================");
+
+                /// 左臂抬起
+                targetPoseTmpL = getRobotPose(0); // 获取当前位置
+                targetPoseTmpL[0] += 0.1;
+
+                /// 右臂抬起
+                targetPoseTmpR = getRobotPose(1); // 获取当前位置
+                targetPoseTmpR[0] -= 0.1;
+
+                mergeTargetLR(targetPoseTmpL, targetPoseTmpR, targetPose);
+                MovePose(targetPose, Vel_Lv1, Acc_Lv1, 2);
+
+                printf("\033[0;31m%s\033[0m\n\n\n", "================================== 抬起手臂 =================================");
+
+                /// 左臂抬起 NOTE: 此时为关节角
+                targetPoseTmpL = getRobotJoints(0); // 获取当前关节角
+                targetPoseTmpL[0] -= D2R(10);
+                targetPoseTmpL[1] -= D2R(10);
+
+                /// 右臂抬起 NOTE: 此时为关节角
+                targetPoseTmpR = getRobotJoints(1); // 获取当前关节角
+                targetPoseTmpR[0] += D2R(10);
+                targetPoseTmpR[1] += D2R(10);
+
+                mergeTargetLR(targetPoseTmpL, targetPoseTmpR, targetPose);
+                MoveJoints(targetPose, Vel_Lv1, Acc_Lv1, 2);
+
+                /// 左臂抬起
+                targetPoseTmpL = getRobotPose(0); // 获取当前位置
+                targetPoseTmpL[0] -= 0.1;
+
+                /// 右臂抬起
+                targetPoseTmpR = getRobotPose(1); // 获取当前位置
+                targetPoseTmpR[0] += 0.1;
+
+                mergeTargetLR(targetPoseTmpL, targetPoseTmpR, targetPose);
+                MovePose(targetPose, Vel_Lv1, Acc_Lv1, 2);
+
+                printf("\033[0;31m%s\033[0m\n\n\n", "================================= 球体抓取成功 ================================");
+                BallPicked = true; // 球体抓取完成
+
+                printf("\033[0;31m%s\033[0m\n\n\n", "================================== 回初始位置 ================================");
+                MoveInit();
+
+//                exit(1);
+            }
+        }
+
+        if (BigCubeFlag) { /// 有立方体
+            printf("\033[0;33m[INFO] Detected big cube, begin to pick it up...\033[0m\n");
+
+            std::vector<double> targetPoseL, targetPoseR, targetPose;
+            if (_graphicsGrasp->getObjPose(BigCubeRect.first, targetPoseL, cloud, 1, 0, 0) && // 两点法计算位置
+                _graphicsGrasp->getObjPose(BigCubeRect.first, targetPoseR, cloud, 1, 0, 1)) {
+
+                MoveJoints(CubeIniteJoints, Vel_Lv3, Acc_Lv3, 2); /// 移动到立方体抓取初始位置
+
+                printf("\033[0;31m%s\033[0m\n",
+                       "================================ 准备抓取立方体 ===============================");
+                /// 左臂准备抓取球体
+                std::vector<double> targetPoseTmpL = targetPoseL; // 目标位置副本
+
+                printf("[INFO] 待抓取球体信息 ID:[%d] LeftOrRight[%d] Pose:[%f,%f,%f,%f,%f,%f]\n\n",
+                       BigCubeRect.second, 0, targetPoseTmpL[0], targetPoseTmpL[1], targetPoseTmpL[2],
+                       targetPoseTmpL[3], targetPoseTmpL[4], targetPoseTmpL[5]);
+
+                targetPoseTmpL = getRobotPose(0); // 获取当前位置
+                targetPoseTmpL[0] += 0.07; // x移动到立方体下半部
+                targetPoseTmpL[1] = targetPoseL[1] - 0.00; // y移动到立方体所在位置, 向前微调
+                targetPoseTmpL[2] = targetPoseL[2] + 0.15; // z 移动到立方体附近
+
+                cout << "[INFO] targetPose[BigCube] Left: " << targetPoseTmpL << endl << endl;
+
+                /// 右臂准备抓取立方体
+                std::vector<double> targetPoseTmpR = targetPoseR; // 目标位置副本
+
+                printf("[INFO] 待抓取立方体体信息 ID:[%d] LeftOrRight[%d] Pose:[%f,%f,%f,%f,%f,%f]\n\n",
+                       BigBallRect.second, 1, targetPoseTmpR[0], targetPoseTmpR[1], targetPoseTmpR[2],
+                       targetPoseTmpR[3], targetPoseTmpR[4], targetPoseTmpR[5]);
+
+                targetPoseTmpR = getRobotPose(1); // 获取当前位置
+                targetPoseTmpR[0] -= 0.07; // x移动到立方体下半部
+                targetPoseTmpR[1] = targetPoseR[1] + 0.00; // y移动到立方体所在位置, 向前微调
+                targetPoseTmpR[2] = targetPoseR[2] + 0.15; // z 移动到立方体附近
+
+                cout << "[INFO] targetPose[BigCube] Right: " << targetPoseTmpR << endl << endl;
+
+                mergeTargetLR(targetPoseTmpL, targetPoseTmpR, targetPose);
+
+                MovePose(targetPose, Vel_Lv1, Acc_Lv1, 2);
+
+                printf("\033[0;31m%s\033[0m\n\n\n", "================================== 抬起立方体 ===============================");
+
+                /// 左臂抬起
+                targetPoseTmpL = getRobotPose(0); // 获取当前位置
+                targetPoseTmpL[0] -= 0.1;
+
+                /// 右臂抬起
+                targetPoseTmpR = getRobotPose(1); // 获取当前位置
+                targetPoseTmpR[0] += 0.1;
+
+                mergeTargetLR(targetPoseTmpL, targetPoseTmpR, targetPose);
+                MovePose(targetPose, Vel_Lv1, Acc_Lv1, 2);
+
+//                exit(1);
+            }
         }
     }
 }
@@ -587,7 +778,7 @@ void GraspController::Move(const std::vector<double>& targetPose, double vel, do
 }
 
 void GraspController::MovePose(const std::vector<double>& targetPose, double vel, double acc, int armId){
-    std::cout << "[MovePose] MovePose ..." << std::endl;
+    std::cout << "\n[MovePose] MovePose ..." << std::endl;
 
     ErrorInfo _ErrorInfo;
     DeviceStatus _DeviceStatus{};
@@ -603,8 +794,14 @@ void GraspController::MovePose(const std::vector<double>& targetPose, double vel
         }
     } else if (armId == 1) {
         actionArmId = RightArm;
-        for (int i = 0; i < 6; i++) {
-            _DeviceStatus._Pos[i+6] = targetPose[i+6]; // 指定pose
+        if (targetPose.size() == 12) {
+            for (int i = 0; i < 6; i++) {
+                _DeviceStatus._Pos[i + 6] = targetPose[i + 6]; // 指定pose
+            }
+        } else if (targetPose.size() == 6) {
+            for (int i = 0; i < 6; i++) {
+                _DeviceStatus._Pos[i + 6] = targetPose[i]; // 指定pose
+            }
         }
     }
     else if (armId == 2) {
@@ -629,18 +826,18 @@ void GraspController::MovePose(const std::vector<double>& targetPose, double vel
     while (true) {
         if (armId == 0) {
             if (isIdle(LeftArm)) {
-                std::cout << "[MovePose] MovePose LeftArm 移动完成." << std::endl;
+                std::cout << "[MovePose] MovePose LeftArm 移动完成.\n" << std::endl;
                 break;
             }
         } else if (armId == 1) {
             if (isIdle(RightArm)) {
-                std::cout << "[MovePose] MovePose RightArm 移动完成." << std::endl;
+                std::cout << "[MovePose] MovePose RightArm 移动完成.\n" << std::endl;
                 break;
             }
         }
         else if (armId == 2) {
             if (isIdle(LeftArm) && isIdle(RightArm)) {
-                std::cout << "[MovePose] MovePose LeftArm and RightArm 移动完成." << std::endl;
+                std::cout << "[MovePose] MovePose LeftArm and RightArm 移动完成.\n" << std::endl;
                 break;
             }
         }
@@ -649,7 +846,7 @@ void GraspController::MovePose(const std::vector<double>& targetPose, double vel
 }
 
 void GraspController::MoveJoints(const std::vector<double>& targetJoints, double vel, double acc, int armId) {
-    std::cout << "[INFO] MoveJoints ..." << std::endl;
+    std::cout << "\n[INFO] MoveJoints ..." << std::endl;
 
     ErrorInfo _ErrorInfo;
     DeviceStatus _DeviceStatus{};
@@ -692,18 +889,18 @@ void GraspController::MoveJoints(const std::vector<double>& targetJoints, double
     while (true) {
         if (armId == 0) {
             if (isIdle(LeftArm)) {
-                std::cout << "[INFO] MoveJoints LeftArm 移动完成." << std::endl;
+                std::cout << "[INFO] MoveJoints LeftArm 移动完成.\n" << std::endl;
                 break;
             }
         } else if (armId == 1) {
             if (isIdle(RightArm)) {
-                std::cout << "[INFO] MoveJoints RightArm 移动完成." << std::endl;
+                std::cout << "[INFO] MoveJoints RightArm 移动完成.\n" << std::endl;
                 break;
             }
         }
         else if (armId == 2) {
             if (isIdle(LeftArm) && isIdle(RightArm)) {
-                std::cout << "[INFO] MoveJoints LeftArm and RightArm 移动完成." << std::endl;
+                std::cout << "[INFO] MoveJoints LeftArm and RightArm 移动完成.\n" << std::endl;
                 break;
             }
         }
@@ -751,7 +948,7 @@ void GraspController::MovePath(const std::vector<double>& targetPose, double vel
 }
 
 void GraspController::MoveJoint6(double targetJoint6L, double targetJoint6R, int armId) {
-    std::vector<double> targetJoints = getRobotJoints();
+    std::vector<double> targetJoints = getRobotJoints(2);
 
     if (armId == 0) {
         targetJoints[5] = targetJoint6L;
@@ -770,11 +967,10 @@ void GraspController::MoveInit() {
     DeviceStatus _DeviceStatus{};
     std::vector<DeviceStatus> _vDeviceStatus;
 
-//    uint16_t actionArmId = armId == 0 ? LeftArm : RightArm;
-
     // 起始位置
-    _DeviceStatus._Joints = {1.62, 0.360, -1.92, -0.64, 0.026, 0.00,
-                             -1.62, -0.360, 1.92, 0.64, -0.026, 0.00};
+    _DeviceStatus._Joints = {1.0, 0.360, -1.92, -0.64, 0.026, 0.00,
+                            -1.0, -0.360, 1.92, 0.64, -0.026, 0.00};
+
     _DeviceStatus._Vel = {1.5, 1.5};
     _DeviceStatus._Acc = {0.5, 0.5};
     _DeviceStatus._ID = LeftArm | RightArm;
@@ -833,7 +1029,7 @@ std::vector<double> GraspController::cart2Joints(const std::vector<double> &targ
     uint16_t _Dev = armId == 0 ? LeftArm : RightArm;
 
     // 先读取当前关节角
-    std::vector<double> initJoints = getRobotJoints(); // 获取当前关节角 size为12
+    std::vector<double> initJoints = getRobotJoints(2); // 获取当前左右臂关节角 size为12
 
     ErrorInfo errorInfo;
     DeviceStatus deviceStatus;
@@ -875,7 +1071,7 @@ void GraspController::mergeTargetLR(std::vector<double> &targetL, std::vector<do
     target.insert(target.end(), targetR.begin(), targetR.end());
 }
 
-std::vector<double> GraspController::getRobotJoints() { // FIXME
+std::vector<double> GraspController::getRobotJoints(int armID) { // FIXME
     ErrorInfo errorInfo;
     DeviceStatus deviceStatus;
     deviceStatus._ID = LeftArm | RightArm;
@@ -885,10 +1081,12 @@ std::vector<double> GraspController::getRobotJoints() { // FIXME
 
     cout << "[INFO] Robot Joints: " << deviceStatus._Joints << endl;
 
-    return deviceStatus._Joints;
+    if (armID == 0) return std::vector<double> (deviceStatus._Joints.begin(), deviceStatus._Joints.begin() + 6);
+    else if (armID == 1) return std::vector<double> (deviceStatus._Joints.begin() + 6, deviceStatus._Joints.begin() + 12);
+    else if (armID == 2) return deviceStatus._Joints;
 }
 
-std::vector<double> GraspController::getRobotPose() { // FIXME
+std::vector<double> GraspController::getRobotPose(int armID) {
     ErrorInfo errorInfo;
     DeviceStatus deviceStatus;
     deviceStatus._ID = LeftArm | RightArm;
@@ -899,7 +1097,9 @@ std::vector<double> GraspController::getRobotPose() { // FIXME
 
     cout << "[INFO] Robot Pose: " << deviceStatus._Tcp << endl;
 
-    return deviceStatus._Tcp;
+    if (armID == 0) return std::vector<double> (deviceStatus._Tcp.begin(), deviceStatus._Tcp.begin() + 6);
+    else if (armID == 1) return std::vector<double> (deviceStatus._Tcp.begin() + 6, deviceStatus._Tcp.begin() + 12);
+    else if (armID == 2) return deviceStatus._Tcp;
 }
 
 void GraspController::cloudInit() {
@@ -930,18 +1130,9 @@ void GraspController::destoryTaskThreads() {
 
 void GraspController::saveCloudAndImages()
 {
-    std::string baseName, cloudName, colorName, depthName;
+    std::string baseName, cloudName, colorName, resizeName, depthName;
     std::ostringstream oss;
-    std::vector<int> params;
     int frame = 0;
-
-    params.push_back(cv::IMWRITE_JPEG_QUALITY);
-    params.push_back(100);
-    params.push_back(cv::IMWRITE_PNG_COMPRESSION);
-    params.push_back(1);
-    params.push_back(cv::IMWRITE_PNG_STRATEGY);
-    params.push_back(cv::IMWRITE_PNG_STRATEGY_RLE);
-    params.push_back(0);
 
     while (true) {
         oss.str("");
@@ -949,6 +1140,7 @@ void GraspController::saveCloudAndImages()
         baseName = oss.str();
         cloudName = "../../../grasp/data/images/" + baseName + "_cloud_" + getCurrentTimeStr() + ".pcd";
         colorName = "../../../grasp/data/images/" + baseName + "_color_" + getCurrentTimeStr() + ".jpg";
+        resizeName = "../../../grasp/data/images/" + baseName + "_resize_" + getCurrentTimeStr() + ".jpg";
         depthName = "../../../grasp/data/images/" + baseName + "_depth_" + getCurrentTimeStr() + ".png";
 
         if ((access(cloudName.c_str(), 0)) == 0) { // 0已存在,-1不存在
@@ -959,12 +1151,18 @@ void GraspController::saveCloudAndImages()
         }
     }
 
-    printf("%s\n", ("[INFO] Saving cloud: " + cloudName).c_str());
-    writer.writeBinary(cloudName, *cloud);
-    printf("%s\n", ("[INFO] Saving color: " + cloudName).c_str());
-    cv::imwrite(colorName, color, params);
+    cv::Mat resize;
+    cv::Point2f P[4];
+    cv::resize(color, resize, cv::Size(960, 540));
+
+//    printf("%s\n", ("[INFO] Saving cloud: " + cloudName).c_str());
+//    writer.writeBinary(cloudName, *cloud);
+    printf("%s\n", ("[INFO] Saving color: " + colorName).c_str());
+    cv::imwrite(colorName, color);
+    printf("%s\n", ("[INFO] Saving resize: " + resizeName).c_str());
+    cv::imwrite(resizeName, resize);
     printf("%s\n", ("[INFO] Saving depth: " + depthName).c_str());
-    cv::imwrite(depthName, depth, params);
+    cv::imwrite(depthName, depth);
 
     printf("[INFO] Saving complete!\n");
 }

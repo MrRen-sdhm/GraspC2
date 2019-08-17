@@ -64,10 +64,10 @@ private:
     void mergeTargetLR(std::vector<double> &targetL, std::vector<double> &targetR, std::vector<double> &target);
 
     //获取机器人的关节角
-    std::vector<double> getRobotJoints();
+    std::vector<double> getRobotJoints(int armID);
 
     //获取机器人的笛卡尔坐标
-    std::vector<double> getRobotPose();
+    std::vector<double> getRobotPose(int armID);
 
     //获取机器人是否空闲 isIdle 1: 空闲 0: 工作
     bool isIdle(uint16_t _Dev);
@@ -197,6 +197,11 @@ private:
     const double Acc_Lv1 = 0.05;
     const double Vel_Lv2 = 1.5;
     const double Acc_Lv2 = 0.5;
+    // 用于移动一个关节
+    const double Vel_Lv3 = 2.5;
+    const double Acc_Lv3 = 1.5;
+
+    bool BallPicked = false;
 
     /// 垂直抓取相关位置
     // 起始位置
@@ -206,6 +211,14 @@ private:
     const std::vector<double> IniteJointsL = {1.62, 0.360, -1.92, -0.64, 0.026, 0.00};
 
     const std::vector<double> IniteJointsR = {-1.62, -0.360, 1.92, 0.64, -0.026, 0.00};
+
+    // 球体抓取初始位置
+    const std::vector<double> BallIniteJoints = {1.62, 0.360, -1.92, -0.64, D2R(-30), 0.00,
+                                                -1.62, -0.360, 1.92, 0.64, D2R(27), 0.00}; // FIXME
+
+    // 立方体抓取初始位置
+    const std::vector<double> CubeIniteJoints = {1.0, 0.360, -1.92, -0.64, D2R(-30), 0.00,
+                                                 -1.0, -0.360, 1.92, 0.64, D2R(27), 0.00}; // FIXME
 
     // 中间位置
     const std::vector<double> MiddlePose = {1.62, 0.920, -1.92, -0.64, 0.026, 0.00,

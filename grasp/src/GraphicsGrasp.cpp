@@ -69,7 +69,7 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectG
 }
 
 std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectBigObj(cv::Mat &image,
-                                                  pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, int thresh, int show)
+                 pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, int objLev, int threshColor, float threshLoc, int show)
 {
     cv::Mat frame;
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotatedRectsAndID;
@@ -85,11 +85,11 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectB
     if(show == 1 | show == 2) cv::imshow("hsv", img_hsv);
 
     /// HSV阈值分割获取掩码
-    int thresh_v_high = thresh; // V通道阈值
+    int thresh_v_high = threshColor; // V通道阈值
     cv::Point LU(LU_[0], LU_[1]); // 桌面区域左上角点 (x, y)=(col, row)
     cv::Point RD(RD_[0], RD_[1]); // 桌面区域右下角点 (x, y)=(col, row)
     cv::Mat mask = cv::Mat::zeros(img_hsv.rows, img_hsv.cols, CV_8U); // 掩码
-    cv::Mat maskBig = cv::Mat::zeros(img_hsv.rows, img_hsv.cols, CV_8U); // 掩码
+    cv::Mat maskHSV = cv::Mat::zeros(img_hsv.rows, img_hsv.cols, CV_8U); // 掩码
 
     /// 获取目标区域掩码
     for(int r = 0; r < img_hsv.rows; ++r) {
@@ -97,33 +97,23 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectB
         const cv::Vec3b *itH = img_hsv.ptr<cv::Vec3b>(r);
 
         for(int c = 0; c < img_hsv.cols; ++c, ++itM, ++itH) {
-            if (r > LU.y && c > LU.x && c < RD.x) { /// 限定像素范围
+            if (r > LU.y && c > WorkAreaThreshL && c < WorkAreaThreshR) { /// 限定像素范围为桌面中心区域
                 if (itH->val[0] < 40 && itH->val[2] > thresh_v_high) { /// HSV阈值分割 顶部>255 旁边>120
-                    *itM = 255;
-                }
-            }
-        }
-    }
-
-    for(int r = 0; r < img_hsv.rows; ++r) {
-        auto *itM = maskBig.ptr<uint8_t>(r);
-        const cv::Vec3b *itH = img_hsv.ptr<cv::Vec3b>(r);
-
-        for(int c = 0; c < img_hsv.cols; ++c, ++itM, ++itH) {
-            if (r > LU.y && c > LU.x && c < RD.x) { /// 限定像素范围
-                if (itH->val[0] < 40 && itH->val[2] > thresh_v_high) { /// HSV阈值分割 顶部>255 旁边>120
-                    /// 计算当前点在机器人坐标系下的坐标
-                    float center_x, center_y, center_z;
-                    int leftOrRight = 0; // 左臂: 0.66 右臂:-0.60
-                    if (getPointLoc(r, c, center_x, center_y, center_z, cloud)) {
-                        std::vector<float> coorRaw = {center_x, center_y, center_z};
-                        std::vector<double> b2oXYZRPY = calcRealCoor(coorRaw, leftOrRight); // 计算基坐标到物体转换关系
+                    if (objLev == 0) { // 无高度检测
+                        *itM = 255;
+                    } else if (objLev == 1 || objLev == 2) { // 高度检测
+                        /// 计算当前点在机器人坐标系下的坐标
+                        float center_x, center_y, center_z;
+                        int leftOrRight = 0; // 左臂: 0.66 右臂:-0.60
+                        if (getPointLoc(r, c, center_x, center_y, center_z, cloud)) {
+                            std::vector<float> coorRaw = {center_x, center_y, center_z};
+                            std::vector<double> b2oXYZRPY = calcRealCoor(coorRaw, leftOrRight); // 计算基坐标到物体转换关系
 
 //                        cout << "当前点在机器人坐标系下的坐标: " << b2oXYZRPY << endl;
-
-                        if (b2oXYZRPY[0] < smallCubeThresh) { // 长方体积木立着<0.62 小立方体<0.6
-                            cout << "阈值范围内的坐标: " << b2oXYZRPY << endl;
-                            *itM = 255; // 高的物体为目标物体
+                            if (b2oXYZRPY[0] < threshLoc) { // 长方体积木立着<0.62 小立方体<0.6
+                                if (show) cout << "阈值范围内的x坐标: " << b2oXYZRPY[0] << " ";
+                                *itM = 255; // 高的物体为目标物体
+                            }
                         }
                     }
                 }
@@ -131,27 +121,43 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectB
         }
     }
 
+    if (show) cout << endl;
+
+    /// 获取目标区域掩码
+    if(show == 1 | show == 2) {
+        for (int r = 0; r < img_hsv.rows; ++r) {
+            auto *itM = maskHSV.ptr<uint8_t>(r);
+            const cv::Vec3b *itH = img_hsv.ptr<cv::Vec3b>(r);
+
+            for (int c = 0; c < img_hsv.cols; ++c, ++itM, ++itH) {
+                if (r > LU.y && c > LU.x && c < RD.x) { /// 限定像素范围
+                    if (itH->val[0] < 40 && itH->val[2] > thresh_v_high) { /// HSV阈值分割 顶部>255 旁边>120
+                        *itM = 255;
+                    }
+                }
+            }
+        }
+    }
+
     if(show == 1 | show == 2) cv::imshow("mask", mask);
-    if(show == 1 | show == 2) cv::imshow("maskBig", maskBig);
+    if(show == 1 | show == 2) cv::imshow("maskHSV", maskHSV);
 
     std::vector<cv::RotatedRect> rotRects;
     cv::Rect box(cv::Point(0, 0), cv::Size(0, 0));
 
     /// 计算最小外接矩形
-    if (calRotatedRect(frame, mask, box, rotRects, 1, show)) {
-        for (const auto & rotRect : rotRects) {
+    if (calRotatedRect(frame, mask, box, rotRects, objLev, show)) {
+        for (const auto &rotRect : rotRects) {
             RotatedRects.push_back(rotRect); // 存储外接矩形
             RectsID.push_back(6); // 存储外接矩形对应的物体类别, BigObj 类别号为6
         }
 
-        printf("[INFO] Detected %zu big obj.\n", rotRects.size());
+        printf("[INFO] Detected %zu big obj(Lv %d).\n", rotRects.size(), objLev);
     }
 
-    if(show == 1 | show == 2) {
-        for (size_t i = 0; i < RotatedRects.size(); i++) {
-            std::cout << "[INFO] minAreaRectOut" << i << " center:" << RotatedRects[i].center << " angle: " <<
-                                                RotatedRects[i].angle << " size: " << RotatedRects[i].size << std::endl;
-        }
+    for (size_t i = 0; i < RotatedRects.size(); i++) {
+        std::cout << "[INFO] minAreaRectOut" << i << " center:" << RotatedRects[i].center << " angle: " <<
+                                            RotatedRects[i].angle << " size: " << RotatedRects[i].size << std::endl;
     }
 
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RectsAndID {RotatedRects, RectsID};
@@ -159,20 +165,21 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectB
     return RectsAndID;
 }
 
-int GraphicsGrasp::detectBigBall(cv::Mat &image, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud,
-                                                        std::pair<cv::RotatedRect, int> &BigRotRectsAndID, bool show) {
+bool GraphicsGrasp::detectBigBall(cv::Mat &image, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud,
+                                                        std::pair<cv::RotatedRect, int> &BigRotRectsAndID, int show) {
     printf("\n[FUNC] Detect BigBall ...\n");
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID;
     std::vector<float> area;
     std::vector<float> indices;
 
-    RotRectsAndID = detectBigObj(image, cloud, 100, false); // 检测大球, 低阈值 NOTE:检测大球和大正方体使用的阈值不一样
+    RotRectsAndID = detectBigObj(image, cloud, 2, 100, bigBallThresh, show); // 检测大球, 低阈值 NOTE:检测大球和大正方体使用的阈值不一样
     for (size_t  idx = 0; idx < RotRectsAndID.first.size(); idx++) {
-        cout << "RotRect Size: " <<  RotRectsAndID.first[idx].size.area() << endl;
-        if (RotRectsAndID.first[idx].size.area() > 10500) { // 球:12116、11030.4 立方体:8798.46、9968.54、9594.76
+        cout << "[INFO] RotRect Size: " <<  RotRectsAndID.first[idx].size.area() << endl;
+        if (RotRectsAndID.first[idx].size.area() > 2000) { // 球:12116、11030.4 立方体:8798.46、9968.54、9594.76 TODO 删除
             area.push_back(RotRectsAndID.first[idx].size.area());
             indices.push_back(idx);
-        }
+        } else {printf("\033[0;32m%s\033[0m\n",
+                       "[WARN] RotRect Size is too small, when detect Big Ball!\n");}
     }
 
     if (!area.empty()) {
@@ -180,24 +187,26 @@ int GraphicsGrasp::detectBigBall(cv::Mat &image, pcl::PointCloud<pcl::PointXYZRG
         auto distance = std::distance(area.begin(), max_area);
         BigRotRectsAndID.first = RotRectsAndID.first[indices[distance]]; // 在RotRectsAndID中的位置
         BigRotRectsAndID.second = RotRectsAndID.second[indices[distance]]; // 在RotRectsAndID中的ID
-        std::cout << "Largest ball is " << *max_area << " at position " << distance << std::endl;
 
-        return 1;
-    } else return  -1;
+        printf("\033[0;34m[INFO] Detected a ball, size is %f at position %ld\033[0m\n", *max_area, distance);
+        cout << "[INFO] Ball's Center: " << BigRotRectsAndID.first.center << endl;
+
+        return true;
+    } else return false;
 }
 
-int GraphicsGrasp::detectBigCube(cv::Mat &image, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud,
-                                                        std::pair<cv::RotatedRect, int> &BigRotRectsAndID, bool show) {
+bool GraphicsGrasp::detectBigCube(cv::Mat &image, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud,
+                                                        std::pair<cv::RotatedRect, int> &BigRotRectsAndID, int show) {
     printf("\n[FUNC] Detect BigCube ...\n");
 
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID;
     std::vector<float> area;
     std::vector<float> indices;
 
-    RotRectsAndID = detectBigObj(image, cloud, 200, show); // 检测大正方体, 高阈值 NOTE:检测大球和大正方体使用的阈值不一样
+    RotRectsAndID = detectBigObj(image, cloud, 2, 200, bigCubeThresh, show); // 检测大正方体, 高阈值 NOTE:检测大球和大正方体使用的阈值不一样
     for (size_t  idx = 0; idx < RotRectsAndID.first.size(); idx++) {
         cout << "RotRect Size: " <<  RotRectsAndID.first[idx].size.area() << endl;
-        if (RotRectsAndID.first[idx].size.area() < 7000) { // 球:8713.38、7992.55 立方体:6000.45、5858.15
+        if (RotRectsAndID.first[idx].size.area() > 2000) { // 球:8713.38、7992.55 立方体:6000.45、5858.15 TODO 删除
             area.push_back(RotRectsAndID.first[idx].size.area());
             indices.push_back(idx);
         }
@@ -210,13 +219,13 @@ int GraphicsGrasp::detectBigCube(cv::Mat &image, pcl::PointCloud<pcl::PointXYZRG
         BigRotRectsAndID.second = RotRectsAndID.second[indices[distance]]; // 在RotRectsAndID中的ID
         std::cout << "Largest cube is " << *max_area << " at position " << distance << std::endl;
 
-        return 1;
-    } else return  -1;
+        return true;
+    } else return false;
 }
 
 std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::getRotRectsAndID(
                             cv::Mat &image, std::vector<int> &classIds, std::vector<float> &confidences,
-                            std::vector<cv::Rect> &boxes, cv::Rect rect, int thresh, int show) {
+                            std::vector<cv::Rect> &boxes, const cv::Rect& rect, int thresh, int show) {
 
     std::vector<cv::RotatedRect> RotatedRects;
     std::vector<int> RectsID;
@@ -232,11 +241,11 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::getRotR
 //        }
 
         cv::Mat img_roi = image.clone()(box);
-        if(show == 1 | show == 2) cv::imshow("roi", img_roi);
+        if(show == 1 || show == 2) cv::imshow("roi", img_roi);
 
         cv::Mat img_hsv;
         cv::cvtColor(img_roi, img_hsv, CV_BGR2HSV);
-        if(show == 1 | show == 2) cv::imshow("hsv", img_hsv);
+        if(show == 1 || show == 2) cv::imshow("hsv", img_hsv);
 
         /// HSV阈值分割获取掩码
         int thresh_v_high = thresh; // V通道阈值
@@ -253,7 +262,7 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::getRotR
                 }
             }
         }
-        if(show == 1 | show == 2) cv::imshow("mask", mask);
+        if(show == 1 || show == 2) cv::imshow("mask", mask);
 
         /// 计算最小外接矩形
         std::vector<cv::RotatedRect> rotRects;
@@ -261,11 +270,11 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::getRotR
             RotatedRects.push_back(rotRects[0]); // 存储外接矩形, 每个积木仅有一个外接矩形
             RectsID.push_back(classIds[i]); // 存储外接矩形对应的物体类别
 
-            if(show == 1 | show == 2) std::cout << "minAreaRectOut: center:" << rotRects[0].center << " angle: " <<
+            if(show == 1 || show == 2) std::cout << "minAreaRectOut: center:" << rotRects[0].center << " angle: " <<
                                                 rotRects[0].angle << " size: " << rotRects[0].size << std::endl;
         }
 
-        if(show == 1 | show == 2) yoloDetector->drawPred(classIds[i], confidences[i], box.x, box.y, box.x + box.width,
+        if(show == 1 || show == 2) yoloDetector->drawPred(classIds[i], confidences[i], box.x, box.y, box.x + box.width,
                                            box.y + box.height, frame_copy); // 画边框
 
         if(show == 2) {
@@ -285,7 +294,7 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::getRotR
 }
 
 bool GraphicsGrasp::calRotatedRect(cv::Mat img_roi, cv::Mat mask, const cv::Rect& box,
-                                  std::vector<cv::RotatedRect> &rotRects, int juggleOrCube, int show){
+                                  std::vector<cv::RotatedRect> &rotRects, int objLev, int show){
     std::vector<int> bigAreaIdx;
 
     /// 轮廓查找
@@ -327,9 +336,10 @@ bool GraphicsGrasp::calRotatedRect(cv::Mat img_roi, cv::Mat mask, const cv::Rect
 
     std::vector<cv::Point> contourlist; // 轮廓列表
     /// 最大轮廓的最小外接矩形
-    if (juggleOrCube == 0) { // 积木的外接矩形, 仅一个
+    if (objLev == 0) { // 最小的物体-积木
         if (max_area > areaThresh) {
-            printf("\033[0;32m[WARN] RotRect area is too large: %f at[x-%d, y-%d]\033[0m\n", max_area, box.x, box.y);
+            printf("\033[0;32m[WARN] RotRect area is too large when find juggle: %f at[x-%d, y-%d]\033[0m\n",
+                    max_area, box.x, box.y);
 
             return  false; // 面积过大, 不是积木, 积木面积最大值在 888 左右
         }
@@ -342,7 +352,7 @@ bool GraphicsGrasp::calRotatedRect(cv::Mat img_roi, cv::Mat mask, const cv::Rect
         rotRects[0].center.x += box.x;
         rotRects[0].center.y += box.y;
 
-    } else if (juggleOrCube == 1) { // 所有立方体的外接矩形
+    } else if (objLev == 1 | objLev == 2) { // 中等物体-带孔正方体 或 最大物体-球/正方体
         if (bigAreaIdx.empty())
             return false; // 未找到立方体
 
@@ -350,8 +360,9 @@ bool GraphicsGrasp::calRotatedRect(cv::Mat img_roi, cv::Mat mask, const cv::Rect
             contourlist = contours[bigAreaIdx[idx]];
             printf("[INFO] Cube area: %f\n", fabs(contourArea(contourlist)));
 
-            rotRects.push_back(minAreaRect(contourlist));
+            rotRects.push_back(minAreaRect(contourlist)); // 存储较大物体
 
+            /// 显示中心孔两侧目标点 NOTE:此处仅用于显示
             // 外接矩形的四个角点
             cv::Point2f P[4];
             rotRects[idx].points(P);
@@ -383,9 +394,8 @@ bool GraphicsGrasp::calRotatedRect(cv::Mat img_roi, cv::Mat mask, const cv::Rect
             P0.y = P1.y + (P2.y - P1.y) / 2;
             cv::circle(img_roi, P0, 1, cv::Scalar(0, 0, 255), 2);
 
-            // 获取整张图片下的中心位置
             rotRects[idx].center.x += box.x;
-            rotRects[idx].center.y += box.y;
+            rotRects[idx].center.y += box.y; // NOTE：实际中心点位置在getObjPose函数中计算
         }
     }
 
@@ -509,7 +519,8 @@ std::vector<double> GraphicsGrasp::calcRealCoor(std::vector<float> coorRaw, int 
         // 0815 新
         handEyeTranslation = {-111.763, -130.0, -285.0}; // 外参translation_vector：[x, y ,z] 单位mm
     } else if (leftOrRight == 1) { // 右臂
-        handEyeTranslation = {1.8252700567245483e+02, -8.7103784084320054e+01, -1.2175752222537994e+02}; // 外参translation_vector：[x, y ,z] 单位mm
+        /// y方向 -87.1->-107.1 向机器人前方(y-)  z方向 向机器人中间 -121.75->-130.00(z-)
+        handEyeTranslation = {1.8252700567245483e+02, -115.00, -130.00}; // 外参translation_vector：[x, y ,z] 单位mm
     }
 
     // 旋转向量
@@ -543,29 +554,24 @@ std::vector<double> GraphicsGrasp::calcRealCoor(std::vector<float> coorRaw, int 
 }
 
 bool GraphicsGrasp::getObjPose(cv::RotatedRect& RotRect, std::vector<double> &b2oXYZRPY,
-            const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr& cloud, int juggleOrCube, int longOrshort, int leftOrRight) {
+            const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr& cloud, int towPointOrNot, int longOrshort, int leftOrRight) {
     printf("\n[FUNC] Get Object Poses ...\n");
     int row = 0, col = 0;
     float center_x = 0, center_y = 0, center_z = 0;
     float center_angle = RotRect.angle;
 
-    if (juggleOrCube == 0) { // 积木
-        if (RotRect.size.area() < 25) { // 为空
-            printf("\033[0;31m%s\033[0m\n", "[ERRO] RotRect invalid for getObjPose!\n");
-            return false;
-        }
+    if (RotRect.size.area() < 25) { // 为空
+        printf("\033[0;31m%s\033[0m\n", "[ERRO] RotRect invalid for getObjPose!\n");
+        return false;
+    }
 
+    if (towPointOrNot == 0) { // 直接中心点计算位置
         row = (int)RotRect.center.y;
         col = (int)RotRect.center.x;
 
         if(!getPointLoc(row, col, center_x, center_y, center_z, cloud)) return false;
 
-    } else if (juggleOrCube == 1) { // 正方体
-        if (RotRect.size.area() < 25) { // 为空
-            printf("\033[0;31m%s\033[0m\n", "[ERRO] RotRect invalid for getObjPose!\n");
-            return false;
-        }
-
+    } else if (towPointOrNot == 1) { // 两点法计算位置
         float x, y, z; // 不准确的中心位置
         float x1, y1, z1; // 实际位置1
         float x2, y2, z2; // 实际位置2
@@ -703,9 +709,9 @@ bool GraphicsGrasp::getPointLoc(int row, int col, float &loc_x, float &loc_y, fl
     }
 
     /// 未寻找到可用深度
-    if (loc_z < 0.1 || loc_z > 2.0 || qIsNaN(loc_z)) {
-        printf("[WARN] row: %d col: %d loc_z: %f\n", row, col, loc_z);
-        printf("\033[0;31m[WARN] Center point's depth is not valid!\033[0m\n");
+    if (loc_z < 0.1 || loc_z > 2.0 || qIsNaN(loc_x) || qIsNaN(loc_y) || qIsNaN(loc_z)) {
+        printf("[WARN] row: %d col: %d loc_x: %f loc_y: %f loc_z: %f  ", row, col, loc_x, loc_y, loc_z);
+        printf("\033[0;31m[WARN] Center point's depth is not valid!\033[0m  ");
         return false;
 //        throw std::runtime_error("\033[0;31mCenter point's depth is not valid!\033[0m\n");
     }

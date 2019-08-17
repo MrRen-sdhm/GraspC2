@@ -16,15 +16,15 @@ void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat
         /// 正方体/球检测
         std::pair<cv::RotatedRect, int> BigBallRect, BigCubeRect;
 
-        if(_graphicsGrasp->detectBigBall(color, cloud, BigBallRect, true)) {
-            RotRectsAndID.first.push_back(BigBallRect.first);
-            RotRectsAndID.second.push_back(BigBallRect.second);
-        }
-
-//        if(_graphicsGrasp->detectBigCube(color, cloud, BigCubeRect, true)) {
-//            RotRectsAndID.first.push_back(BigCubeRect.first);
-//            RotRectsAndID.second.push_back(BigCubeRect.second);
+//        if(_graphicsGrasp->detectBigBall(color, cloud, BigBallRect, 1)) {
+//            RotRectsAndID.first.push_back(BigBallRect.first);
+//            RotRectsAndID.second.push_back(BigBallRect.second);
 //        }
+
+        if(_graphicsGrasp->detectBigCube(color, cloud, BigCubeRect, true)) {
+            RotRectsAndID.first.push_back(BigCubeRect.first);
+            RotRectsAndID.second.push_back(BigCubeRect.second);
+        }
     }
 
 #if 1  /// 左右臂目标物体确定
@@ -91,8 +91,27 @@ void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat
     }
 
     cv::imwrite("/home/hustac/result.jpg", resized);
-    cv::imshow("roi_minAreaRect", resized);
+    cv::imshow("result", resized);
     cv::waitKey(0);
+
+    /// 计算大球和大立方体的高度
+    std::vector<float> coorRaw;
+    std::vector<double> coorReal;
+
+    // 球体 0.441943
+    coorRaw = {-0.106421, 0.017420, 0.625000};
+    coorReal = _graphicsGrasp->calcRealCoor(coorRaw, 0);
+    cout << "coorRealBall: " << coorReal << endl;
+
+    // 立方体 0.475721
+    coorRaw = {0.019815, 0.046960, 0.634000};
+    coorReal = _graphicsGrasp->calcRealCoor(coorRaw, 0);
+    cout << "coorRealCube: " << coorReal << endl;
+
+    // 桌面 0.561311
+    coorRaw = {0.167363, 0.191053, 0.671000};
+    coorReal = _graphicsGrasp->calcRealCoor(coorRaw, 0);
+    cout << "coorRealTable: " << coorReal << endl;
 
 #endif
 }
@@ -112,13 +131,13 @@ int main(int argc, char** argv)
 
     cv::Mat color, depth;
 
-    color = cv::imread("../../../grasp/data/images/ball1.jpg");
-    depth = cv::imread("../../../grasp/data/images/depth.png", -1);
+    color = cv::imread("../../../grasp/data/images/00_color_0817.jpg");
+    depth = cv::imread("../../../grasp/data/images/00_depth_0817.png", -1);
 
 //    color = cv::imread("/home/hustac/test.jpg");
 //    depth = cv::imread("/home/hustac/test.png", -1);
 
-//    _graphicsGrasp->showWorkArea(color); // 显示工作区域
+    _graphicsGrasp->showWorkArea(color); // 显示工作区域
 
     _graphicsGrasp->createPointCloud(color, depth, cloud); // 创建点云
 

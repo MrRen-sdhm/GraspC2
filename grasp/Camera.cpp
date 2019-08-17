@@ -30,14 +30,14 @@ void image_process(std::shared_ptr<GraphicsGrasp> _graphicsGrasp, cv::Mat color,
         RotRectsAndID = _graphicsGrasp->detectGraspYolo(color, 200, 1);
     } else if (juggleOrCube == 1) {
         /// 正方体/球检测
-        cv::RotatedRect BigBallRect, BigCubeRect;
+        std::pair<cv::RotatedRect, int> BigBallRect, BigCubeRect;
 
 //        if(_graphicsGrasp->detectBigBall(color, BigBallRect)) {
-//            RotRectsAndID.first.push_back(BigBallRect);
+//            RotRectsAndID.first.push_back(BigBallRect.first);
 //        }
 
-        if(_graphicsGrasp->detectBigCube(color, BigCubeRect)) {
-            RotRectsAndID.first.push_back(BigCubeRect);
+        if(_graphicsGrasp->detectBigCube(color, cloud, BigCubeRect, true)) {
+            RotRectsAndID.first.push_back(BigCubeRect.first);
         }
     }
 
@@ -154,7 +154,7 @@ int main(int argc, char** argv)
 
             _graphicsGrasp->showWorkArea(color); // 显示工作区域
 
-            image_process(_graphicsGrasp, color, cloud);
+//            image_process(_graphicsGrasp, color, cloud);
 
             cv::Mat resized;
             std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotatedRectsAndID;

@@ -70,19 +70,20 @@ public:
 
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> getRotRectsAndID(cv::Mat &image,
                                                 std::vector<int> &classIds, std::vector<float> &confidences,
-                                                std::vector<cv::Rect> &boxes, cv::Rect rect, int thresh, int show);
+                                                std::vector<cv::Rect> &boxes, const cv::Rect& rect, int thresh, int show);
 
     bool calRotatedRect(cv::Mat img_roi, cv::Mat mask, const cv::Rect& box,
-                                       std::vector<cv::RotatedRect> &rotRects, int juggleOrCube, int show);
+                                       std::vector<cv::RotatedRect> &rotRects, int objLev, int show);
 
+    /// objLev: 0-无高度检测 1-中等物体，有高度检测 2-超大物体，有高度检测 threshColor:颜色阈值 threshLo:高度阈值
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> detectBigObj(cv::Mat &image,
-                                                pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, int thresh, int show);
+            pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, int objLev, int threshColor, float threshLoc, int show);
 
-    int detectBigBall(cv::Mat &image, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud,
-                                std::pair<cv::RotatedRect, int> &BigRotRectsAndID, bool show); // 1为检测到, -1 为未检测到
+    bool detectBigBall(cv::Mat &image, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud,
+                                std::pair<cv::RotatedRect, int> &BigRotRectsAndID, int show); // 1为检测到, -1 为未检测到
 
-    int detectBigCube(cv::Mat &image, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud,
-                                std::pair<cv::RotatedRect, int> &BigRotRectsAndID, bool show); // 1为检测到, -1 为未检测到
+    bool detectBigCube(cv::Mat &image, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud,
+                                std::pair<cv::RotatedRect, int> &BigRotRectsAndID, int show); // 1为检测到, -1 为未检测到
     /**
      * calcRealCoor  输入kinect点云图像抓取姿态，依据手眼标定结果，输出手臂基坐标系下抓取姿态
      * @param rotMatrix  相机坐标系下抓取姿态的旋转矩阵
@@ -95,9 +96,9 @@ public:
     /// 寻找左右侧的目标物体, 左侧找最左/上边的, 右侧找最右/下边的, RowOrCol: 1为左右最值 0为上下最值
     std::vector<int> findAimObjLR(std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID, int RowOrCol);
 
-    /// 获取物体姿态和ID longOrshort: 0为长边 leftOrRight: 0为左臂
+    /// 获取物体姿态和ID towPointOrNot: 0-单点计算坐标 1-两点计算平均坐标 longOrshort: 0为长边 leftOrRight: 0为左臂
     bool getObjPose(cv::RotatedRect& RotRect, std::vector<double> &b2oXYZRPY,
-            const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr& cloud, int juggleOrCube, int longOrshort, int leftOrRight);
+            const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr& cloud, int towPointOrNot, int longOrshort, int leftOrRight);
 
     bool getPointLoc (int row, int col, float &loc_x, float &loc_y, float &loc_z,
                              const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr& cloud);
@@ -122,15 +123,16 @@ public:
     /// 工作区域划分
     std::vector<int> LU_ = {100, 240}; // 桌面区域左上角点 (x, y)=(col, row)
     std::vector<int> RD_ = {730, 540}; // 桌面区域右下角点 (x, y)=(col, row)
-    const float LeftOrRightThresh = 390.0; // 左右臂分工阈值, 列数小于阈值为左臂管辖
-    const float WorkAreaThreshL = 230.0; // 左侧工作区域分割阈值
-    const float WorkAreaThreshR = 550.0; // 右侧工作区域分割阈值
+    const float LeftOrRightThresh = 400.0; // 左右臂分工阈值, 列数小于阈值为左臂管辖
+    const float WorkAreaThreshL = 280.0; // 左侧工作区域分割阈值
+    const float WorkAreaThreshR = 525.0; // 右侧工作区域分割阈值
 
 private:
     const double areaThresh = 1300.0; // 积木与立方体轮廓面积区分阈值
-    const double smallCubeThresh = 0.6; // 在机器人坐标系下, 小立方体x方向坐标阈值 FIXME
-    const double bigCubeThresh = 0.6; // 在机器人坐标系下, 大立方体x方向坐标阈值
-    const double bigBallThresh = 0.6; // 在机器人坐标系下, 大球x方向坐标阈值
+    /// NOTE：值越小离桌面越远
+    const float smallCubeThresh = 0.6; // 在机器人坐标系下, 小立方体x方向坐标阈值 FIXME
+    const float bigCubeThresh = 0.50; // 在机器人坐标系下, 大立方体x方向坐标阈值, 应小于立方体最高点x
+    const float bigBallThresh = 0.47; // 在机器人坐标系下, 大球x方向坐标阈值, 应小于球最高点x
 
 private:
     /// GPD FIXME
