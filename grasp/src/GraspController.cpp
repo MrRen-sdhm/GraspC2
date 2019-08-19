@@ -705,6 +705,7 @@ bool GraspController::isIdle(uint16_t _Dev) {
     }
 }
 
+#if 0
 void GraspController::Move(const std::vector<double>& targetPose, double vel, double acc, int armId) { // TODO 测试
     std::cout << "[INFO] Move ..." << std::endl;
 
@@ -779,6 +780,90 @@ void GraspController::Move(const std::vector<double>& targetPose, double vel, do
 
         std::this_thread::sleep_for(std::chrono::milliseconds(200)); /// 很关键
     }
+}
+#endif
+
+void GraspController::Move(const std::vector<double>& targetPose, double vel, double acc, int armId) {
+    std::cout << "[INFO] Move ..." << std::endl;
+
+    uint16_t actionArmId = -1;
+    if (armId == 0) {
+        actionArmId = LeftArm;
+    } else if (armId == 1) {
+        actionArmId = RightArm;
+    }
+    else if (armId == 2) {
+        actionArmId = LeftArm | RightArm;
+    }
+
+    ErrorInfo _ErrorInfo;
+    DeviceStatus _DeviceStatus{};
+    std::vector<DeviceStatus> _vDeviceStatus;
+
+    ErrorInfo _ErrorInfo_Move;
+    DeviceStatus _DeviceStatus_Move{};
+    std::vector<DeviceStatus> _vDeviceStatus_Move;
+
+    std::vector<double> AimJoints;
+
+    std::vector<double> initJoints;
+//    initJoints = getRobotJoints(_cassemble2Driver);
+
+    initJoints = {D2R(91.238), D2R(64.396), D2R(-37.523), D2R(-15.631), D2R(-1.713), D2R(5.382),
+                                          D2R(-91.238), D2R(-64.396), D2R(37.523), D2R(15.631), D2R(1.713), D2R(-5.382)};
+
+    _DeviceStatus._ID = actionArmId;
+    _DeviceStatus._Status = {0,0};
+
+    _DeviceStatus._Joints = initJoints;
+    _DeviceStatus._Pos = targetPose;
+
+    _cassemble2Driver->CartToJoint(_DeviceStatus, _ErrorInfo);
+
+    for (size_t i = 0; i < _DeviceStatus._Joints.size(); i++) {
+        printf("[Move] AimJoint[%zu]: %f ", i, R2D(_DeviceStatus._Joints[i]));
+    }
+
+    cout << endl;
+
+    std::cout << "[Move] MoveTargetPose:" << targetPose << " acc:" << acc << " vel:" << vel << std::endl;
+    std::cout << "[Move] CalcJoints: " << _DeviceStatus._Joints << std::endl;
+    std::cout << "[Move] DeviceStatus.Pos: " << _DeviceStatus._Pos << "  ArmId: " << armId << std::endl;
+    std::cout << "[Move] DeviceStatus.Vel: " <<  _DeviceStatus._Vel << "  DeviceStatus.Acc: " <<  _DeviceStatus._Acc << std::endl;
+
+    AimJoints = _DeviceStatus._Joints;
+
+    // 移动
+    _DeviceStatus_Move._Vel = {vel, vel};
+    _DeviceStatus_Move._Acc = {acc, acc};
+    _DeviceStatus_Move._ID =  actionArmId;
+    _DeviceStatus_Move._Joints = AimJoints;
+    _vDeviceStatus_Move.push_back(_DeviceStatus_Move);
+
+    _cassemble2Driver->MovePath(_vDeviceStatus_Move, _ErrorInfo_Move);
+
+    while (true) {
+        if (armId == 0) {
+            if (isIdle(LeftArm)) {
+                std::cout << "[Move] Move LeftArm 移动完成." << std::endl;
+                break;
+            }
+        } else if (armId == 1) {
+            if (isIdle(RightArm)) {
+                std::cout << "[Move] Move RightArm 移动完成." << std::endl;
+                break;
+            }
+        }
+        else if (armId == 2) {
+            if (isIdle(LeftArm) && isIdle(RightArm)) {
+                std::cout << "[Move] Move LeftArm and RightArm 移动完成." << std::endl;
+                break;
+            }
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(200)); /// 很关键
+    }
+
 }
 
 void GraspController::MovePose(const std::vector<double>& targetPose, double vel, double acc, int armId){

@@ -79,6 +79,9 @@ public:
                                                std::vector<int> &classIds, std::vector<float> &confidences,
                                                std::vector<cv::Rect> &boxes, const cv::Rect& rect, int thresh, int show);
 
+    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> detectBigCubeTask3(cv::Mat &image,
+                            pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, int thresh, int show);
+
     bool calRotatedRect(cv::Mat img_roi, cv::Mat mask, const cv::Rect& box,
                                        std::vector<cv::RotatedRect> &rotRects, int objLev, int show);
 
@@ -140,7 +143,7 @@ private:
     const float smallCubeThresh = 0.6; // 在机器人坐标系下, 小立方体x方向坐标阈值 FIXME
     const float bigCubeThresh = 0.50; // 在机器人坐标系下, 大立方体x方向坐标阈值, 应小于立方体最高点x
     const float bigBallThresh = 0.47; // 在机器人坐标系下, 大球x方向坐标阈值, 应小于球最高点x
-
+    const float bigCubeTask3Thresh = 0.55; // 在机器人坐标系下, 大长方体x方向坐标阈值, 越小限制越大
 private:
     /// GPD FIXME
 //    gpd::GraspDetectorPointNet* grasp_detector_; ///< used to run the GPD algorithm

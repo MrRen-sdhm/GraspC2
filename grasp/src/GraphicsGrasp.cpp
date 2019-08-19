@@ -131,7 +131,7 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectB
                             std::vector<float> coorRaw = {center_x, center_y, center_z};
                             std::vector<double> b2oXYZRPY = calcRealCoor(coorRaw, leftOrRight); // 计算基坐标到物体转换关系
 
-//                        cout << "当前点在机器人坐标系下的坐标: " << b2oXYZRPY << endl;
+                            if(show == 1 || show == 2) cout << "当前点在机器人坐标系下的坐标: " << b2oXYZRPY << endl;
                             if (b2oXYZRPY[0] < threshLoc) { // 长方体积木立着<0.62 小立方体<0.6
                                 if (show) cout << "阈值范围内的x坐标: " << b2oXYZRPY[0] << " ";
                                 *itM = 255; // 高的物体为目标物体
@@ -313,7 +313,6 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::getRotR
     return RectsAndID;
 }
 
-
 std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectJuggles(
         cv::Mat &image, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, std::vector<int> &classIds, std::vector<float> &confidences,
         std::vector<cv::Rect> &boxes, const cv::Rect& rect, int threshColor, int show) {
@@ -340,7 +339,8 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectJ
 
         /// HSV阈值分割获取掩码
         int thresh_v_high = threshColor; // V通道阈值
-        cv::Mat mask = cv::Mat::zeros(img_hsv.rows, img_hsv.cols, CV_8U); // 掩码
+        cv::Point LU(LU_[0], LU_[1]); // 桌面区域左上角点 (x, y)=(col, row)
+        cv::Point RD(RD_[0], RD_[1]); // 桌面区域右下角点 (x, y)=(col, row)
         cv::Mat maskHSV = cv::Mat::zeros(img_hsv.rows, img_hsv.cols, CV_8U); // 掩码
         cv::Mat maskTop = cv::Mat::zeros(img_hsv.rows, img_hsv.cols, CV_8U); // 掩码
 
@@ -350,12 +350,11 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectJ
 
         /// 获取目标区域中所有点机器人坐标系下的实际x坐标 扫描目标区域！
         for(int r = 0; r < img_hsv.rows; ++r) {
-            auto *itM = mask.ptr<uint8_t>(r);
             const cv::Vec3b *itH = img_hsv.ptr<cv::Vec3b>(r);
 
-            for(int c = 0; c < img_hsv.cols; ++c, ++itM, ++itH) {
+            for(int c = 0; c < img_hsv.cols; ++c, ++itH) {
 
-                if (c > (int)WorkAreaThreshL && c < (int)WorkAreaThreshR) { /// 限定像素范围为桌面中心区域
+                if ( r > LU.y && r < RD.y && c > (int)WorkAreaThreshL && c < (int)WorkAreaThreshR) { /// 限定像素范围为桌面中心区域
                     if (r > box.y && r < box.y+box.height && c > box.x && c < box.x+box.width) { /// 目标框中的区域
                         if (itH->val[0] < 60 && itH->val[2] > thresh_v_high) { /// HSV阈值分割 顶部>255 旁边>120
 
@@ -365,7 +364,7 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectJ
                             if (getPointLoc(r, c, center_x, center_y, center_z, cloud)) {
                                 std::vector<float> coorRaw = {center_x, center_y, center_z};
                                 std::vector<double> b2oXYZRPY = calcRealCoor(coorRaw, leftOrRight); // 计算基坐标到物体转换关系
-                                cout << "当前点在机器人坐标系下的坐标: " << b2oXYZRPY[0] << endl;
+                                if(show == 1 || show == 2) cout << "当前点在机器人坐标系下的坐标: " << b2oXYZRPY[0] << endl;
 
                                 // 存储当前点的实际x坐标及所在行列
                                 LocX.push_back(b2oXYZRPY[0]);
@@ -410,7 +409,7 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectJ
 
                 for(int c = 0; c < img_hsv.cols; ++c, ++itM, ++itH) {
 
-                    if (c > (int)WorkAreaThreshL && c < (int)WorkAreaThreshR) { /// 限定像素范围为桌面中心区域
+                    if (r > LU.y && r < RD.y && c > (int)WorkAreaThreshL && c < (int)WorkAreaThreshR) { /// 限定像素范围为桌面中心区域
                         if (r > box.y && r < box.y+box.height && c > box.x && c < box.x+box.width) { /// 目标框中的区域
                             if (itH->val[0] < 60 && itH->val[2] > thresh_v_high) { /// HSV阈值分割 顶部>255 旁边>120
                                 *itM = 255;
@@ -421,7 +420,6 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectJ
             }
         }
 
-        if(show == 1 || show == 2) cv::imshow("mask", mask);
         if(show == 1 || show == 2) cv::imshow("maskHSV", maskHSV);
         if(show == 1 || show == 2) cv::imshow("maskTop", maskTop);
 
@@ -449,6 +447,146 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectJ
         cv::imshow("detectJuggles", frame_copy);
         cv::waitKey(0);
     }
+
+    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RectsAndID {RotatedRects, RectsID};
+
+    return RectsAndID;
+}
+
+
+std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectBigCubeTask3(
+        cv::Mat &image, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, int threshColor, int show) {
+
+    std::vector<cv::RotatedRect> RotatedRects;
+    std::vector<int> RectsID;
+
+    cv::Mat frame;
+    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotatedRectsAndID;
+
+    cv::resize(image, frame, cv::Size(960, 540)); // 缩小图片
+
+    cv::Mat frame_copy = frame.clone();
+
+    cv::Mat img_hsv;
+    cv::cvtColor(frame, img_hsv, CV_BGR2HSV);
+    if(show == 1 || show == 2) cv::imshow("hsv", img_hsv);
+
+    /// HSV阈值分割获取掩码
+    int thresh_v_high = threshColor; // V通道阈值
+    cv::Point LU(LU_[0], LU_[1]); // 桌面区域左上角点 (x, y)=(col, row)
+    cv::Point RD(RD_[0], RD_[1]); // 桌面区域右下角点 (x, y)=(col, row)
+    cv::Mat maskHSV = cv::Mat::zeros(img_hsv.rows, img_hsv.cols, CV_8U); // 掩码
+    cv::Mat maskTop = cv::Mat::zeros(img_hsv.rows, img_hsv.cols, CV_8U); // 掩码
+
+    std::vector<double> LocX; // HSV阈值分割后点在机器人坐标系下x方向的坐标
+    std::vector<int> LocRow; // HSV阈值分割后点所在行
+    std::vector<int> LocCol; // HSV阈值分割后点所在列
+
+    /// 获取目标区域中所有点机器人坐标系下的实际x坐标 扫描目标区域！
+    for(int r = 0; r < img_hsv.rows; ++r) {
+        const cv::Vec3b *itH = img_hsv.ptr<cv::Vec3b>(r);
+
+        for(int c = 0; c < img_hsv.cols; ++c, ++itH) {
+
+            if (r > LU.y && r < RD.y && c > (int)WorkAreaThreshL && c < (int)WorkAreaThreshR) { /// 限定像素范围为桌面中心区域
+                if (itH->val[0] < 60 && itH->val[2] > thresh_v_high) { /// HSV阈值分割 顶部>255 旁边>120
+
+                    /// 计算当前点在机器人坐标系下的坐标
+                    float center_x, center_y, center_z;
+                    int leftOrRight = 0; // 左臂: 0.66 右臂:-0.60
+                    if (getPointLoc(r, c, center_x, center_y, center_z, cloud)) {
+                        std::vector<float> coorRaw = {center_x, center_y, center_z};
+                        std::vector<double> b2oXYZRPY = calcRealCoor(coorRaw, leftOrRight); // 计算基坐标到物体转换关系
+                        if(show == 1 || show == 2) cout << "当前点在机器人坐标系下的坐标: " << b2oXYZRPY[0] << endl;
+
+                        // 存储当前点的实际x坐标及所在行列
+                        LocX.push_back(b2oXYZRPY[0]);
+                        LocRow.push_back(r);
+                        LocCol.push_back(c);
+                    }
+                }
+            }
+        }
+    }
+
+    /// 处理阈值分割后的坐标 找最高点, 即x最小
+//    double MinX = 0;
+//    int RawRow, RawCol;
+//    if (!LocX.empty()) { // 左侧有物体
+//        auto min_X = std::min_element(LocX.begin(), LocX.end());
+//        MinX = *min_X;
+//
+//        auto distance = std::distance(LocX.begin(), min_X);
+//        RawRow = LocRow[distance]; // 在原始图像中的行
+//        RawCol = LocCol[distance]; // 在原始图像中的列
+//        std::cout << "[INFO] LocX Min element is " << *min_X << " at row:"
+//                  << RawRow << " at col: " << RawCol << std::endl;
+//    } else {
+//        printf("LocX is empty!\n");
+//    }
+
+    for (size_t j = 0; j < LocX.size(); j++) {
+//        if (LocX[j] < MinX + 0.3) // 截取下方1cm范围内的点
+        if (LocX[j] < bigCubeTask3Thresh) // 截取固定高度以下的点
+        {
+            auto *itM = maskTop.ptr<uint8_t>(LocRow[j]) + LocCol[j];
+            *itM = 255;
+        }
+    }
+
+    /// 获取目标区域掩码
+    if(show == 1 | show == 2) {
+        for(int r = 0; r < img_hsv.rows; ++r) {
+            auto *itM = maskHSV.ptr<uint8_t>(r);
+            const cv::Vec3b *itH = img_hsv.ptr<cv::Vec3b>(r);
+
+            for(int c = 0; c < img_hsv.cols; ++c, ++itM, ++itH) {
+
+                if (r > LU.y && r < RD.y && c > (int)WorkAreaThreshL && c < (int)WorkAreaThreshR) { /// 限定像素范围为桌面中心区域
+                    if (itH->val[0] < 60 && itH->val[2] > thresh_v_high) { /// HSV阈值分割 顶部>255 旁边>120
+                        *itM = 255;
+                    }
+                }
+            }
+        }
+    }
+
+    Mat erode;
+    //获取自定义核
+    Mat element_erode = getStructuringElement(MORPH_RECT, Size(7, 7));
+    //腐蚀操作
+    cv::erode(maskTop, erode, element_erode);
+
+    Mat dilate;
+    //获取自定义核
+    Mat element_dilate = getStructuringElement(MORPH_RECT, Size(5, 5));
+    //膨胀操作
+    cv::dilate(erode, dilate, element_dilate);
+
+    if(show == 1 || show == 2) cv::imshow("maskHSV", maskHSV);
+    if(show == 1 || show == 2) cv::imshow("maskTop", maskTop);
+    if(show == 1 || show == 2) cv::imshow("erode", erode);
+    if(show == 1 || show == 2) cv::imshow("dilate", dilate);
+
+    /// 计算最小外接矩形
+    cv::Rect startBox(cv::Point(0, 0), cv::Size(0, 0)); /// 此处起点为960*540图片的0,0点
+    std::vector<cv::RotatedRect> rotRects;
+
+    if (calRotatedRect(frame, dilate, startBox, rotRects, 1, show)) { // 方案2查找轮廓
+        for (size_t ii = 0; ii < rotRects.size(); ii++) {
+            RotatedRects.push_back(rotRects[ii]); // 存储外接矩形, 每个积木仅有一个外接矩形
+            RectsID.push_back(7); // 存储外接矩形对应的物体类别
+
+            if (show == 1 || show == 2)
+                std::cout << "minAreaRectOut: center:" << rotRects[ii].center << " angle: " <<
+                          rotRects[0].angle << " size: " << rotRects[ii].size << std::endl;
+        }
+    }
+//
+//    if(show == 1 || show == 2) {
+//        cv::imshow("detectBigCubeTask3", frame_copy);
+//        cv::waitKey(0);
+//    }
 
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RectsAndID {RotatedRects, RectsID};
 
@@ -556,14 +694,46 @@ bool GraphicsGrasp::calRotatedRect(cv::Mat img, cv::Mat mask, const cv::Rect& bo
             P0.y = P1.y + (P2.y - P1.y) / 2;
             cv::circle(img, P0, 1, cv::Scalar(0, 0, 255), 2);
 
+            // 计算height边上的中心点
+//            cv::Point2f Pheight1;
+//            Pheight1.x = P[0].x + (P[1].x - P[0].x) / 2;
+//            Pheight1.y = P[0].y + (P[1].y - P[0].y) / 2;
+//            cv::circle(img, Pheight1, 1, cv::Scalar(0, 0, 0), 2);
+//
+//            cv::Point2f Pheight2;
+//            Pheight2.x = P[2].x + (P[3].x - P[2].x) / 2;
+//            Pheight2.y = P[2].y + (P[3].y - P[2].y) / 2;
+//            cv::circle(img, Pheight2, 1, cv::Scalar(0, 0, 255), 2);
+
+            // 计算width边上的中心点
+            cv::Point2f Pwidth1;
+            Pwidth1.x = P[0].x + (P[3].x - P[0].x) / 2;
+            Pwidth1.y = P[0].y + (P[3].y - P[0].y) / 2;
+            cv::circle(img, Pwidth1, 1, cv::Scalar(0, 0, 0), 2);
+
+            cv::Point2f Pwidth2;
+            Pwidth2.x = P[2].x + (P[1].x - P[2].x) / 2;
+            Pwidth2.y = P[2].y + (P[1].y - P[2].y) / 2;
+            cv::circle(img, Pwidth2, 1, cv::Scalar(0, 0, 255), 2);
+
+            cv::Point2f Pwidth_1;
+            Pwidth_1.x = Pwidth1.x + (Pwidth2.x - Pwidth1.x) / 6;
+            Pwidth_1.y = Pwidth1.y + (Pwidth2.y - Pwidth1.y) / 6;
+            cv::circle(img, Pwidth_1, 1, cv::Scalar(0, 255, 0), 2);
+
+            cv::Point2f Pwidth_2;
+            Pwidth_2.x = Pwidth1.x + (Pwidth2.x - Pwidth1.x) * 5/6;
+            Pwidth_2.y = Pwidth1.y + (Pwidth2.y - Pwidth1.y) * 5/6;
+            cv::circle(img, Pwidth_2, 1, cv::Scalar(0, 255, 0), 2);
+
             rotRects[idx].center.x += box.x;
             rotRects[idx].center.y += box.y; // NOTE：实际中心点位置在getObjPose函数中计算
         }
     }
 //
-//    if(show == 1) cv::imshow("calRotatedRect", img);
+    if(show == 1 || show == 2) cv::imshow("calRotatedRect", img);
 //    cv::imwrite("/home/hustac/calRotatedRect.jpg", img);
-//    cv::waitKey(0);
+    cv::waitKey(0);
 
     return true;
 }
@@ -938,7 +1108,7 @@ void GraphicsGrasp::createPointCloud(cv::Mat &color, cv::Mat &depth, const pcl::
             const float depthValue = (float)*itD/ 1000.0f;
 
             // Check for invalid measurements
-            if(*itD == 0 || *itD > 1000)
+            if(*itD == 0 || *itD > 800)
             {
                 // not valid
                 itP->x = itP->y = itP->z = badPoint;

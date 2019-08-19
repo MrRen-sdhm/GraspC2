@@ -7,25 +7,31 @@ void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID, RotRectsAndIDTop;
     std::vector<double> Pose;
 
-    const int juggleOrCube = 0; /// 0为积木, 1为大型物体
+    const int juggleOrCube = 1; /// 0为积木, 1为大型物体
 
     if (juggleOrCube == 0) {
         /// Yolo积木检测
 //        RotRectsAndID = _graphicsGrasp->detectGraspYolo(color, 200, 2);
         RotRectsAndID = _graphicsGrasp->detectGraspYoloPro(color, cloud, 120, 1);
     } else if (juggleOrCube == 1) {
+        /// 大型物体检测
+//        RotRectsAndID = _graphicsGrasp->detectBigObj(color, cloud, 2, 200, 0.7, 2); // 检测大正方体, 高阈值 NOTE:检测大球和大正方体使用的阈值不一样
+
         /// 正方体/球检测
-        std::pair<cv::RotatedRect, int> BigBallRect, BigCubeRect;
+//        std::pair<cv::RotatedRect, int> BigBallRect, BigCubeRect;
 
 //        if(_graphicsGrasp->detectBigBall(color, cloud, BigBallRect, 1)) {
 //            RotRectsAndID.first.push_back(BigBallRect.first);
 //            RotRectsAndID.second.push_back(BigBallRect.second);
 //        }
 
-        if(_graphicsGrasp->detectBigCube(color, cloud, BigCubeRect, true)) {
-            RotRectsAndID.first.push_back(BigCubeRect.first);
-            RotRectsAndID.second.push_back(BigCubeRect.second);
-        }
+//        if(_graphicsGrasp->detectBigCube(color, cloud, BigCubeRect, true)) {
+//            RotRectsAndID.first.push_back(BigCubeRect.first);
+//            RotRectsAndID.second.push_back(BigCubeRect.second);
+//        }
+
+        // 大长方体检测
+        RotRectsAndID = _graphicsGrasp->detectBigCubeTask3(color, cloud, 120, 1);
     }
 
 #if 0  /// 左右臂目标物体确定
@@ -123,11 +129,11 @@ int main(int argc, char** argv)
 
     cv::Mat color, depth;
 
-//    color = cv::imread("../../../grasp/data/images/00_color_0819.jpg");
-//    depth = cv::imread("../../../grasp/data/images/00_depth_0819.png", -1);
+    color = cv::imread("../../../grasp/data/images/22_color_0818.jpg");
+    depth = cv::imread("../../../grasp/data/images/22_depth_0818.png", -1);
 
-    color = cv::imread("/home/hustac/test1.jpg");
-    depth = cv::imread("/home/hustac/test1.png", -1);
+//    color = cv::imread("/home/hustac/test1.jpg");
+//    depth = cv::imread("/home/hustac/test1.png", -1);
 
     _graphicsGrasp->showWorkArea(color); // 显示工作区域
 
