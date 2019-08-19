@@ -68,9 +68,16 @@ public:
     // show: 1-全部显示 2-逐个显示 其他-不显示
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> detectGraspYolo(cv::Mat &image, int thresh, int show);
 
+    // show: 1-全部显示 2-逐个显示 其他-不显示
+    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> detectGraspYoloPro(cv::Mat &image, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, int thresh, int show);
+
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> getRotRectsAndID(cv::Mat &image,
                                                 std::vector<int> &classIds, std::vector<float> &confidences,
                                                 std::vector<cv::Rect> &boxes, const cv::Rect& rect, int thresh, int show);
+
+    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> detectJuggles(cv::Mat &image, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud,
+                                               std::vector<int> &classIds, std::vector<float> &confidences,
+                                               std::vector<cv::Rect> &boxes, const cv::Rect& rect, int thresh, int show);
 
     bool calRotatedRect(cv::Mat img_roi, cv::Mat mask, const cv::Rect& box,
                                        std::vector<cv::RotatedRect> &rotRects, int objLev, int show);
@@ -121,8 +128,8 @@ public:
 
 public:
     /// 工作区域划分
-    std::vector<int> LU_ = {100, 240}; // 桌面区域左上角点 (x, y)=(col, row)
-    std::vector<int> RD_ = {730, 540}; // 桌面区域右下角点 (x, y)=(col, row)
+    std::vector<int> LU_ = {140, 230}; // 桌面区域左上角点 (x, y)=(col, row)
+    std::vector<int> RD_ = {680, 490}; // 桌面区域右下角点 (x, y)=(col, row)
     const float LeftOrRightThresh = 400.0; // 左右臂分工阈值, 列数小于阈值为左臂管辖
     const float WorkAreaThreshL = 280.0; // 左侧工作区域分割阈值
     const float WorkAreaThreshR = 525.0; // 右侧工作区域分割阈值

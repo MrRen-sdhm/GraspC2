@@ -23,7 +23,7 @@ void image_process(std::shared_ptr<GraphicsGrasp> _graphicsGrasp, cv::Mat color,
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID, RotRectsAndIDTop;
     std::vector<double> Pose;
 
-    const int juggleOrCube = 0; /// 0为积木, 1为立方体
+    const int juggleOrCube = 1; /// 0为积木, 1为立方体
 
     if (juggleOrCube == 0) {
         /// Yolo积木检测
@@ -152,7 +152,7 @@ int main(int argc, char** argv)
 
             _graphicsGrasp->createPointCloud(color, depth, cloud); // 创建点云
 
-            _graphicsGrasp->showWorkArea(color); // 显示工作区域
+            _graphicsGrasp->showWorkArea(color); // 显示工作区域q
 
             image_process(_graphicsGrasp, color, cloud);
 

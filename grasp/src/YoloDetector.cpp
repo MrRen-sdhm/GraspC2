@@ -112,9 +112,9 @@ void YoloDetector::detectObj(cv::Mat &image, std::vector<int> &classIds,
             }
 
             cv::imshow("Yolo_Raw", image_copy);
-             cv::waitKey(0);
+//            cv::waitKey(0);
         }
-//        cv::imwrite("/home/hustac/out-det.jpg", image);
+//        cv::imwrite("/home/hustac/out-det.png", image_copy);
     }
 }
 

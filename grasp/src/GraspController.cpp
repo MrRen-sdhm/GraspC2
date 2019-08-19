@@ -279,6 +279,8 @@ bool GraspController::graspControlDual() {
     /// 点云初始化
     cloudInit();
 
+    printf("\033[0;31m%s\033[0m\n", "================================== 初始化成功 =================================");
+
     while (true) {
         printf("\033[0;31m%s\033[0m\n", "================================== 采集图像 =================================");
         captureImage(-100); // 采集图像
@@ -311,6 +313,7 @@ bool GraspController::graspControlDual() {
         if (saveFlag) { // 每次运行程序保存一次数据
             saveCloudAndImages();
             saveFlag = false;
+//            exit(1);
         }
 
         printf("\033[0;31m%s\033[0m\n", "=================================== 目标检测 ================================");
@@ -824,6 +827,8 @@ void GraspController::MovePose(const std::vector<double>& targetPose, double vel
     _cassemble2Driver->MovePath(_vDeviceStatus, _ErrorInfo);
 //    std::this_thread::sleep_for(std::chrono::milliseconds(1000)); /// 很关键
 
+    std::cout << "[MovePose] ErrorInfo: " << _ErrorInfo._ErrIndex << "  " << _ErrorInfo._SubErrIndex  << std::endl;
+
     while (true) {
         if (armId == 0) {
             if (isIdle(LeftArm)) {
@@ -887,6 +892,8 @@ void GraspController::MoveJoints(const std::vector<double>& targetJoints, double
 //    std::this_thread::sleep_for(std::chrono::milliseconds(1000)); /// 很关键
 //    sleep(1); /// 很关键
 
+    std::cout << "[MoveJoints] ErrorInfo: " << _ErrorInfo._ErrIndex << "  " << _ErrorInfo._SubErrIndex  << std::endl;
+
     while (true) {
         if (armId == 0) {
             if (isIdle(LeftArm)) {
@@ -938,6 +945,8 @@ void GraspController::MovePath(const std::vector<double>& targetPose, double vel
     std::cout << "[MovePath] DeviceStatus.Vel: " <<  _DeviceStatus._Vel << "  DeviceStatus.Acc: " <<  _DeviceStatus._Acc << std::endl;
 
     _cassemble2Driver->MovePath(_vDeviceStatus, _ErrorInfo);
+
+    std::cout << "[MovePath] ErrorInfo: " << _ErrorInfo._ErrIndex << "  " << _ErrorInfo._SubErrIndex  << std::endl;
 
     while (true) {
         if (isIdle(armId == 0 ? LeftArm : RightArm)) {
@@ -1147,7 +1156,7 @@ void GraspController::saveCloudAndImages()
         resizeName = "../../../grasp/data/images/" + baseName + "_resize_" + getCurrentTimeStr() + ".jpg";
         depthName = "../../../grasp/data/images/" + baseName + "_depth_" + getCurrentTimeStr() + ".png";
 
-        if ((access(cloudName.c_str(), 0)) == 0) { // 0已存在,-1不存在
+        if ((access(colorName.c_str(), 0)) == 0) { // 0已存在,-1不存在
             frame++;
         }
         else {

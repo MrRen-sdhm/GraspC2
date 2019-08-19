@@ -199,8 +199,8 @@ private:
     const double Acc_Lv2 = 0.5;
 
     // 用于移动关节角
-    const double Vel_Lv3 = 5.0;
-    const double Acc_Lv3 = 5.0;
+    const double Vel_Lv3 = 3.0;
+    const double Acc_Lv3 = 3.0;
 
     bool BallPicked = false;
 

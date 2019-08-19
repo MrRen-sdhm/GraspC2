@@ -7,11 +7,12 @@ void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID, RotRectsAndIDTop;
     std::vector<double> Pose;
 
-    const int juggleOrCube = 0; /// 0为积木, 1为立方体
+    const int juggleOrCube = 0; /// 0为积木, 1为大型物体
 
     if (juggleOrCube == 0) {
         /// Yolo积木检测
-        RotRectsAndID = _graphicsGrasp->detectGraspYolo(color, 200, 1);
+//        RotRectsAndID = _graphicsGrasp->detectGraspYolo(color, 200, 2);
+        RotRectsAndID = _graphicsGrasp->detectGraspYoloPro(color, cloud, 120, 1);
     } else if (juggleOrCube == 1) {
         /// 正方体/球检测
         std::pair<cv::RotatedRect, int> BigBallRect, BigCubeRect;
@@ -27,7 +28,7 @@ void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat
         }
     }
 
-#if 1  /// 左右臂目标物体确定
+#if 0  /// 左右臂目标物体确定
     std::vector<int> AimObjIndicesLR = _graphicsGrasp->findAimObjLR(RotRectsAndID, 0);
 
     if (AimObjIndicesLR[0] != -1 && AimObjIndicesLR[1] != -1) {
@@ -60,7 +61,7 @@ void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat
             cv::circle(resized, RotRectsAndID.first[indicesLr].center, 1, cv::Scalar(0, 0, 255), 2);
 
             cv::imshow("roi_minAreaRect", resized);
-            cv::waitKey(0);
+//            cv::waitKey(0);
         }
     }
 #endif
@@ -71,17 +72,8 @@ void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat
     cv::resize(color, resized, cv::Size(960, 540));
 
     for (size_t i = 0; i < RotRectsAndID.first.size(); i++) {
-        int leftOrright = ((int) RotRectsAndID.first[i].center.x < 410) ? 0 : 1;
-
-        _graphicsGrasp->getObjPose(RotRectsAndID.first[i], Pose, cloud, juggleOrCube, 0, leftOrright);
-
-//        printf("[INFO] 待抓取物体信息 ID:[%d] Angle:[%f] left/right[%d] Pose:[%f,%f,%f,%f,%f,%f]\n\n",
-//               RotRectsAndID.second[i],
-//               RotRectsAndID.first[i].angle, leftOrright, Pose[0], Pose[1],
-//               Pose[2], Pose[3], Pose[4], Pose[5]);
 
         /// 显示目标物体外接矩形
-
         cv::Point2f P[4];
         RotRectsAndID.first[i].points(P);
         for (int j = 0; j <= 3; j++) {
@@ -91,7 +83,7 @@ void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat
     }
 
     cv::imwrite("/home/hustac/result.jpg", resized);
-    cv::imshow("result", resized);
+    cv::imshow("RotRectsAndID Result ", resized);
     cv::waitKey(0);
 
     /// 计算大球和大立方体的高度
@@ -131,11 +123,11 @@ int main(int argc, char** argv)
 
     cv::Mat color, depth;
 
-    color = cv::imread("../../../grasp/data/images/yolo.jpg");
-    depth = cv::imread("../../../grasp/data/images/04_depth_0817.png", -1);
+//    color = cv::imread("../../../grasp/data/images/00_color_0819.jpg");
+//    depth = cv::imread("../../../grasp/data/images/00_depth_0819.png", -1);
 
-//    color = cv::imread("/home/hustac/test.jpg");
-//    depth = cv::imread("/home/hustac/test.png", -1);
+    color = cv::imread("/home/hustac/test1.jpg");
+    depth = cv::imread("/home/hustac/test1.png", -1);
 
     _graphicsGrasp->showWorkArea(color); // 显示工作区域
 
