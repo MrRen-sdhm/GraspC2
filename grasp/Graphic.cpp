@@ -18,12 +18,12 @@ void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat
 //        RotRectsAndID = _graphicsGrasp->detectBigObj(color, cloud, 2, 200, 0.7, 2); // 检测大正方体, 高阈值 NOTE:检测大球和大正方体使用的阈值不一样
 
         /// 正方体/球检测
-//        std::pair<cv::RotatedRect, int> BigBallRect, BigCubeRect;
+        std::pair<cv::RotatedRect, int> BigBallRect, BigCubeRect;
 
-//        if(_graphicsGrasp->detectBigBall(color, cloud, BigBallRect, 1)) {
-//            RotRectsAndID.first.push_back(BigBallRect.first);
-//            RotRectsAndID.second.push_back(BigBallRect.second);
-//        }
+        if(_graphicsGrasp->detectBigBall(color, cloud, BigBallRect, 1)) {
+            RotRectsAndID.first.push_back(BigBallRect.first);
+            RotRectsAndID.second.push_back(BigBallRect.second);
+        }
 
 //        if(_graphicsGrasp->detectBigCube(color, cloud, BigCubeRect, true)) {
 //            RotRectsAndID.first.push_back(BigCubeRect.first);
@@ -32,6 +32,117 @@ void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat
 
         // 大长方体检测
         RotRectsAndID = _graphicsGrasp->detectBigCubeTask3(color, cloud, 120, 1);
+
+        std::vector<std::pair<float, float>> PointListL, PointListR; // 存储所有点对
+
+        for (size_t i = 0; i < RotRectsAndID.first.size(); i++) {
+            std::pair<float, float> PointL, PointR;
+            cv::Point2f P[4];
+            RotRectsAndID.first[i].points(P);
+
+            if (RotRectsAndID.first[i].size.width < RotRectsAndID.first[i].size.height) {
+                // 计算width边上的中心点
+                cv::Point2f Pwidth1;
+                Pwidth1.x = P[0].x + (P[3].x - P[0].x) / 2;
+                Pwidth1.y = P[0].y + (P[3].y - P[0].y) / 2;
+
+                cv::Point2f Pwidth2;
+                Pwidth2.x = P[2].x + (P[1].x - P[2].x) / 2;
+                Pwidth2.y = P[2].y + (P[1].y - P[2].y) / 2;
+
+                cv::Point2f Pwidth_1;
+                Pwidth_1.x = Pwidth1.x + (Pwidth2.x - Pwidth1.x) / 6;
+                Pwidth_1.y = Pwidth1.y + (Pwidth2.y - Pwidth1.y) / 6;
+
+                cv::Point2f Pwidth_2;
+                Pwidth_2.x = Pwidth1.x + (Pwidth2.x - Pwidth1.x) * 5 / 6;
+                Pwidth_2.y = Pwidth1.y + (Pwidth2.y - Pwidth1.y) * 5 / 6;
+
+                if (Pwidth_1.x < Pwidth_2.x) {
+                    PointL.first = Pwidth_1.x;
+                    PointL.second = Pwidth_1.y;
+                    PointR.first = Pwidth_2.x;
+                    PointR.second = Pwidth_2.y;
+                } else {
+                    PointL.first = Pwidth_2.x;
+                    PointL.second = Pwidth_2.y;
+                    PointR.first = Pwidth_1.x;
+                    PointR.second = Pwidth_1.y;
+                }
+
+            } else {
+                // 计算height边上的中心点
+                cv::Point2f Pheight1;
+                Pheight1.x = P[0].x + (P[1].x - P[0].x) / 2;
+                Pheight1.y = P[0].y + (P[1].y - P[0].y) / 2;
+
+                cv::Point2f Pheight2;
+                Pheight2.x = P[2].x + (P[3].x - P[2].x) / 2;
+                Pheight2.y = P[2].y + (P[3].y - P[2].y) / 2;
+
+                cv::Point2f Pheight_1;
+                Pheight_1.x = Pheight1.x + (Pheight2.x - Pheight1.x) / 6;
+                Pheight_1.y = Pheight1.y + (Pheight2.y - Pheight1.y) / 6;
+
+                cv::Point2f Pheight_2;
+                Pheight_2.x = Pheight1.x + (Pheight2.x - Pheight1.x) * 5 / 6;
+                Pheight_2.y = Pheight1.y + (Pheight2.y - Pheight1.y) * 5 / 6;
+
+                if (Pheight_1.x < Pheight_2.x) {
+                    PointL.first = Pheight_1.x;
+                    PointL.second = Pheight_1.y;
+                    PointR.first = Pheight_2.x;
+                    PointR.second = Pheight_2.y;
+                } else {
+                    PointL.first = Pheight_2.x;
+                    PointL.second = Pheight_2.y;
+                    PointR.first = Pheight_1.x;
+                    PointR.second = Pheight_1.y;
+                }
+            }
+
+            PointListL.push_back(PointL);
+            PointListR.push_back(PointR);
+        }
+
+        std::vector<std::pair<cv::Point3f, cv::Point3f>> pointListLR;
+        for (size_t j = 0; j < PointListL.size(); j++) {
+            std::pair<cv::Point3f, cv::Point3f> pointLR;
+            cv::Point3f pointL, pointR;
+            float x1, y1, z1; // 实际位置1
+            float x2, y2, z2; // 实际位置2
+            if (!_graphicsGrasp->getPointLoc((int)PointListL[j].second, (int)PointListL[j].first, x1, y1, z1, cloud)) continue;
+            if (!_graphicsGrasp->getPointLoc((int)PointListR[j].second, (int)PointListR[j].first, x2, y2, z2, cloud)) continue;
+            pointL.x = x1;
+            pointL.y = y1;
+            pointL.z = z1;
+            pointR.x = x2;
+            pointR.y = y2;
+            pointR.z = z2;
+            pointLR.first = pointL;
+            pointLR.second = pointR;
+            pointListLR.push_back(pointLR);
+            printf("[INFO] 左侧抓取点实际坐标: [%f,%f,%f]\n", x1, y1, z1);
+            printf("[INFO] 右侧抓取点实际坐标: [%f,%f,%f]\n", x2, y2, z2);
+        }
+
+        std::vector<float> coorRawL = {pointListLR[0].first.x, pointListLR[0].first.y, pointListLR[0].first.z};
+        std::vector<float> coorRawR = {pointListLR[0].second.x, pointListLR[0].second.y, pointListLR[0].second.z};
+        std::vector<double> b2oXYZRPYL = _graphicsGrasp->calcRealCoor(coorRawL, 0); // 计算基坐标到物体转换关系
+        std::vector<double> b2oXYZRPYR = _graphicsGrasp->calcRealCoor(coorRawR, 0); // 计算基坐标到物体转换关系
+
+        // 舍弃姿态
+        b2oXYZRPYL[3] = 0;
+        b2oXYZRPYL[4] = 0;
+        b2oXYZRPYL[5] = 0;
+        b2oXYZRPYR[3] = 0;
+        b2oXYZRPYR[4] = 0;
+        b2oXYZRPYR[5] = 0;
+
+        printf("[INFO] 左侧抓取点机器人坐标: [%f,%f,%f,%f,%f,%f]\n", b2oXYZRPYL[0], b2oXYZRPYL[1],
+               b2oXYZRPYL[2], b2oXYZRPYL[3], b2oXYZRPYL[4], b2oXYZRPYL[5]);
+        printf("[INFO] 右侧抓取点机器人坐标: [%f,%f,%f,%f,%f,%f]\n", b2oXYZRPYR[0], b2oXYZRPYR[1],
+               b2oXYZRPYR[2], b2oXYZRPYR[3], b2oXYZRPYR[4], b2oXYZRPYR[5]);
     }
 
 #if 0  /// 左右臂目标物体确定
@@ -79,6 +190,8 @@ void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat
 
     for (size_t i = 0; i < RotRectsAndID.first.size(); i++) {
 
+        _graphicsGrasp->getObjPose(RotRectsAndID.first[i], Pose, cloud, juggleOrCube, 0, 1);
+
         /// 显示目标物体外接矩形
         cv::Point2f P[4];
         RotRectsAndID.first[i].points(P);
@@ -97,7 +210,7 @@ void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat
     std::vector<double> coorReal;
 
     // 球体 0.441943
-    coorRaw = {-0.106421, 0.017420, 0.625000};
+    coorRaw = {-0.114937, 0.009031, 0.690000};
     coorReal = _graphicsGrasp->calcRealCoor(coorRaw, 0);
     cout << "coorRealBall: " << coorReal << endl;
 
@@ -129,11 +242,14 @@ int main(int argc, char** argv)
 
     cv::Mat color, depth;
 
-    color = cv::imread("../../../grasp/data/images/22_color_0818.jpg");
-    depth = cv::imread("../../../grasp/data/images/22_depth_0818.png", -1);
+    color = cv::imread("../../../grasp/data/images/27_color_0820.jpg");
+    depth = cv::imread("../../../grasp/data/images/27_depth_0820.png", -1);
 
 //    color = cv::imread("/home/hustac/test1.jpg");
 //    depth = cv::imread("/home/hustac/test1.png", -1);
+
+//    color = cv::imread("/home/hustac/图片/现场采集/test1.jpg");
+//    depth = cv::imread("/home/hustac/图片/现场采集/test1.png", -1);
 
     _graphicsGrasp->showWorkArea(color); // 显示工作区域
 

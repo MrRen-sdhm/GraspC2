@@ -84,6 +84,9 @@ private:
     // 双臂同时抓取
     bool graspControlDual();
 
+    // 双臂同时抓取大长方体
+    bool graspControlBigCubeT3();
+
     // 移动指定位姿 实际使用的是MoveJ 输入笛卡尔 转换为关节角 armId: 0-左臂 1-右臂 2-双臂
     void Move(const std::vector<double>& targetPose, double vel, double acc, int armId);
 
@@ -195,8 +198,8 @@ private:
     /// 抓取相关参数
     const double Vel_Lv1 = 0.5;
     const double Acc_Lv1 = 0.05;
-    const double Vel_Lv2 = 1.5;
-    const double Acc_Lv2 = 0.5;
+    const double Vel_Lv2 = 2.5;
+    const double Acc_Lv2 = 1.5;
 
     // 用于移动关节角
     const double Vel_Lv3 = 3.0;
@@ -228,12 +231,12 @@ private:
                                                    D2R(-89.948), D2R(-65.239), D2R(77.522), D2R(-33.371), D2R(-2.248), D2R(171.430)};
 
     // 球体抓取初始位置
-    const std::vector<double> BallIniteJoints = {1.62, 0.360, -1.92, -0.64, D2R(-30), 0.00,
-                                                -1.62, -0.360, 1.92, 0.64, D2R(27), 0.00}; // FIXME
+    const std::vector<double> BallIniteJoints = {1.62, 0.360, -1.92, -0.64, D2R(-40), 0.00,
+                                                -1.62, -0.360, 1.92, 0.64, D2R(40), D2R(174)}; // FIXME
 
     // 立方体抓取初始位置
-    const std::vector<double> CubeIniteJoints = {D2R(91.238), D2R(64.396), D2R(-37.523), D2R(-15.631), D2R(-30), D2R(5.382),
-                                                 D2R(-91.238), D2R(-64.396), D2R(37.523), D2R(15.631), D2R(27), D2R(-5.382)}; // FIXME
+    const std::vector<double> CubeIniteJoints = {D2R(91.238), D2R(64.396), D2R(-37.523), D2R(-15.631), D2R(-40), D2R(5.382),
+                                                 D2R(-91.238), D2R(-64.396), D2R(37.523), D2R(15.631), D2R(40), D2R(-5.382)}; // FIXME
 
     // 中间位置
     const std::vector<double> MiddlePose = {1.62, 0.920, -1.92, -0.64, 0.026, 0.00,

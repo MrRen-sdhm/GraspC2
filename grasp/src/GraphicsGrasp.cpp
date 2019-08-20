@@ -681,7 +681,6 @@ bool GraphicsGrasp::calRotatedRect(cv::Mat img, cv::Mat mask, const cv::Rect& bo
             cv::Point2f P1;
             P1.x = P[0].x + (P[2].x - P[0].x) / 8;
             P1.y = P[0].y + (P[2].y - P[0].y) / 8;
-            cv::circle(img, P1, 1, cv::Scalar(255, 0, 0), 2);
 
             cv::Point2f P2;
             P2.x = P[0].x + (P[2].x - P[0].x) * 7 / 8;
@@ -694,37 +693,55 @@ bool GraphicsGrasp::calRotatedRect(cv::Mat img, cv::Mat mask, const cv::Rect& bo
             P0.y = P1.y + (P2.y - P1.y) / 2;
             cv::circle(img, P0, 1, cv::Scalar(0, 0, 255), 2);
 
-            // 计算height边上的中心点
-//            cv::Point2f Pheight1;
-//            Pheight1.x = P[0].x + (P[1].x - P[0].x) / 2;
-//            Pheight1.y = P[0].y + (P[1].y - P[0].y) / 2;
-//            cv::circle(img, Pheight1, 1, cv::Scalar(0, 0, 0), 2);
-//
-//            cv::Point2f Pheight2;
-//            Pheight2.x = P[2].x + (P[3].x - P[2].x) / 2;
-//            Pheight2.y = P[2].y + (P[3].y - P[2].y) / 2;
-//            cv::circle(img, Pheight2, 1, cv::Scalar(0, 0, 255), 2);
+            if (rotRects[idx].size.width < rotRects[idx].size.height) {
 
-            // 计算width边上的中心点
-            cv::Point2f Pwidth1;
-            Pwidth1.x = P[0].x + (P[3].x - P[0].x) / 2;
-            Pwidth1.y = P[0].y + (P[3].y - P[0].y) / 2;
-            cv::circle(img, Pwidth1, 1, cv::Scalar(0, 0, 0), 2);
+                // 计算width边上的中心点
+                cv::Point2f Pwidth1;
+                Pwidth1.x = P[0].x + (P[3].x - P[0].x) / 2;
+                Pwidth1.y = P[0].y + (P[3].y - P[0].y) / 2;
+//                cv::circle(img, Pwidth1, 1, cv::Scalar(0, 0, 0), 2);
 
-            cv::Point2f Pwidth2;
-            Pwidth2.x = P[2].x + (P[1].x - P[2].x) / 2;
-            Pwidth2.y = P[2].y + (P[1].y - P[2].y) / 2;
-            cv::circle(img, Pwidth2, 1, cv::Scalar(0, 0, 255), 2);
+                cv::Point2f Pwidth2;
+                Pwidth2.x = P[2].x + (P[1].x - P[2].x) / 2;
+                Pwidth2.y = P[2].y + (P[1].y - P[2].y) / 2;
+//                cv::circle(img, Pwidth2, 1, cv::Scalar(0, 0, 255), 2);
 
-            cv::Point2f Pwidth_1;
-            Pwidth_1.x = Pwidth1.x + (Pwidth2.x - Pwidth1.x) / 6;
-            Pwidth_1.y = Pwidth1.y + (Pwidth2.y - Pwidth1.y) / 6;
-            cv::circle(img, Pwidth_1, 1, cv::Scalar(0, 255, 0), 2);
+                cv::Point2f Pwidth_1;
+                Pwidth_1.x = Pwidth1.x + (Pwidth2.x - Pwidth1.x) / 6;
+                Pwidth_1.y = Pwidth1.y + (Pwidth2.y - Pwidth1.y) / 6;
+                cv::circle(img, Pwidth_1, 1, cv::Scalar(0, 0, 0), 2);
 
-            cv::Point2f Pwidth_2;
-            Pwidth_2.x = Pwidth1.x + (Pwidth2.x - Pwidth1.x) * 5/6;
-            Pwidth_2.y = Pwidth1.y + (Pwidth2.y - Pwidth1.y) * 5/6;
-            cv::circle(img, Pwidth_2, 1, cv::Scalar(0, 255, 0), 2);
+                cv::Point2f Pwidth_2;
+                Pwidth_2.x = Pwidth1.x + (Pwidth2.x - Pwidth1.x) * 5 / 6;
+                Pwidth_2.y = Pwidth1.y + (Pwidth2.y - Pwidth1.y) * 5 / 6;
+                cv::circle(img, Pwidth_2, 1, cv::Scalar(0, 0, 0), 2);
+
+                cout << "大长方体上的一对点" << Pwidth_1 << "  " << Pwidth_2 << endl;
+
+            } else {
+                // 计算height边上的中心点
+                cv::Point2f Pheight1;
+                Pheight1.x = P[0].x + (P[1].x - P[0].x) / 2;
+                Pheight1.y = P[0].y + (P[1].y - P[0].y) / 2;
+//                cv::circle(img, Pheight1, 1, cv::Scalar(0, 0, 0), 2);
+
+                cv::Point2f Pheight2;
+                Pheight2.x = P[2].x + (P[3].x - P[2].x) / 2;
+                Pheight2.y = P[2].y + (P[3].y - P[2].y) / 2;
+//                cv::circle(img, Pheight2, 1, cv::Scalar(0, 0, 255), 2);
+
+                cv::Point2f Pheight_1;
+                Pheight_1.x = Pheight1.x + (Pheight2.x - Pheight1.x) / 6;
+                Pheight_1.y = Pheight1.y + (Pheight2.y - Pheight1.y) / 6;
+                cv::circle(img, Pheight_1, 1, cv::Scalar(0, 0, 0), 2);
+
+                cv::Point2f Pheight_2;
+                Pheight_2.x = Pheight1.x + (Pheight2.x - Pheight1.x) * 5 / 6;
+                Pheight_2.y = Pheight1.y + (Pheight2.y - Pheight1.y) * 5 / 6;
+                cv::circle(img, Pheight_2, 1, cv::Scalar(0, 0, 0), 2);
+
+                cout << "大长方体上的一对点" << Pheight_1 << "  " << Pheight_2 << endl;
+            }
 
             rotRects[idx].center.x += box.x;
             rotRects[idx].center.y += box.y; // NOTE：实际中心点位置在getObjPose函数中计算
@@ -733,7 +750,7 @@ bool GraphicsGrasp::calRotatedRect(cv::Mat img, cv::Mat mask, const cv::Rect& bo
 //
     if(show == 1 || show == 2) cv::imshow("calRotatedRect", img);
 //    cv::imwrite("/home/hustac/calRotatedRect.jpg", img);
-    cv::waitKey(0);
+    if(show == 1 || show == 2) cv::waitKey(0);
 
     return true;
 }
@@ -831,19 +848,17 @@ std::vector<double> GraphicsGrasp::calcRealCoor(std::vector<float> coorRaw, int 
     // 从外参中获取旋转向量
     std::vector<double> handEyeAxisAngle;
     if (leftOrRight == 0) { // 左臂
-//        handEyeAxisAngle = {1.6493674939539318e+00,
-//                            2.1497733612005401e-01,
-//                            9.4954804224349210e-01,
-//                            -2.2834898823134014e-01}; // 外参rotation_vector：[Angle, AxisX, AxisY, AxisZ] 单位rad
         handEyeAxisAngle = {1.64979,
                             0.226241,
                             0.949886,
                             -0.215711}; // 外参rotation_vector：[Angle, AxisX, AxisY, AxisZ] 单位rad
+        handEyeAxisAngle = handEyeAxisAngle0517L;
     } else if (leftOrRight == 1) { // 右臂
         handEyeAxisAngle = {1.5758424729195439e+00,
                             2.2768667381355578e-01,
                             -9.4690716445454615e-01,
                             2.2699251193017475e-01}; // 外参rotation_vector：[Angle, AxisX, AxisY, AxisZ] 单位rad
+        handEyeAxisAngle = handEyeAxisAngle0517R;
     }
 
     // 从外参中获取平移向量
@@ -852,9 +867,11 @@ std::vector<double> GraphicsGrasp::calcRealCoor(std::vector<float> coorRaw, int 
 //        handEyeTranslation = {-1.9141241908073422e+02, -9.3745023012161283e+01, -3.1072884798049927e+02}; // 外参translation_vector：[x, y ,z] 单位mm
         /// y方向 -130.0->-107.1 向机器人前方(y-)  z方向 向机器人中间 -121.75->-130.00(z-)
         handEyeTranslation = {-111.763, -107.0, -285.0}; // 外参translation_vector：[x, y ,z] 单位mm
+        handEyeTranslation = handEyeTranslation0517L;
     } else if (leftOrRight == 1) { // 右臂
         /// y方向 -87.1->-107.1 向机器人前方(y-)  z方向 向机器人中间 -121.75->-130.00(z-)
         handEyeTranslation = {1.8252700567245483e+02, -115.00, -130.00}; // 外参translation_vector：[x, y ,z] 单位mm
+        handEyeTranslation = handEyeTranslation0517R;
     }
 
     // 旋转向量
@@ -1108,7 +1125,7 @@ void GraphicsGrasp::createPointCloud(cv::Mat &color, cv::Mat &depth, const pcl::
             const float depthValue = (float)*itD/ 1000.0f;
 
             // Check for invalid measurements
-            if(*itD == 0 || *itD > 800)
+            if(*itD == 0 || *itD > 1100)
             {
                 // not valid
                 itP->x = itP->y = itP->z = badPoint;
@@ -1159,9 +1176,10 @@ void GraphicsGrasp::readCameraInfo(cv::Mat &cameraMatrix)
 //    std::vector<double> cameraMatrixVec = {1.0751836750739103e+03, 0., 9.9204536064492709e+02,
 //                                           0., 1.0787798824980591e+03, 5.5685612287788467e+02,
 //                                           0., 0., 1.};
-    std::vector<double> cameraMatrixVec = {1.0817351755988568e+03, 0., 9.4219086287825303e+02,
-                                           0., 1.0823131063554199e+03, 5.7383408949778186e+02,
-                                           0., 0., 1.};
+//    std::vector<double> cameraMatrixVec = {1.0817351755988568e+03, 0., 9.4219086287825303e+02,
+//                                           0., 1.0823131063554199e+03, 5.7383408949778186e+02,
+//                                           0., 0., 1.};
+    std::vector<double> cameraMatrixVec = cameraMatrixVec0517;
 
     double *itC = cameraMatrix.ptr<double>(0, 0);
     for(size_t i = 0; i < 9; ++i, ++itC)
