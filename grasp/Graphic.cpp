@@ -30,7 +30,7 @@ void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat
 //            RotRectsAndID.second.push_back(BigCubeRect.second);
 //        }
 
-# if 1 /// 大长方体检测
+# if 0 /// 大长方体检测
         RotRectsAndID = _graphicsGrasp->detectBigCubeTask3(color, cloud, 120, 1);
 
         std::vector<std::pair<float, float>> PointListL, PointListR; // 存储所有点对
@@ -144,6 +144,10 @@ void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat
         printf("[INFO] 右侧抓取点机器人坐标: [%f,%f,%f,%f,%f,%f]\n", b2oXYZRPYR[0], b2oXYZRPYR[1],
                b2oXYZRPYR[2], b2oXYZRPYR[3], b2oXYZRPYR[4], b2oXYZRPYR[5]);
 #endif
+
+#if 1 /// 小立方体检测
+        RotRectsAndID = _graphicsGrasp->detectSmallCubeTask2(color, cloud, 120, 1);
+#endif
     }
 
 #if 0  /// 左右臂目标物体确定
@@ -200,11 +204,15 @@ void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat
             line(resized, P[j], P[(j + 1) % 4], cv::Scalar(0, 255, 0), 2);
         }
         cv::circle(resized, RotRectsAndID.first[i].center, 1, cv::Scalar(0, 0, 255), 2);
+
+        cout << "[INFO] RotRects ID: " << RotRectsAndID.second[i] << endl;
+
+        cv::imshow("RotRectsAndID Result ", resized);
+        cv::waitKey(0);
     }
 
     cv::imwrite("/home/hustac/result.jpg", resized);
-    cv::imshow("RotRectsAndID Result ", resized);
-    cv::waitKey(0);
+//    cv::waitKey(0);
 
     /// 计算大球和大立方体的高度
     std::vector<float> coorRaw;
@@ -246,10 +254,16 @@ int main(int argc, char** argv)
     // 球
 //    color = cv::imread("../../../grasp/data/images/old/27_color_0820.jpg");
 //    depth = cv::imread("../../../grasp/data/images/old/27_depth_0820.png", -1);
+//    color = cv::imread("../../../grasp/data/images/47_color_0821.jpg");
+//    depth = cv::imread("../../../grasp/data/images/47_depth_0821.png", -1);
+
+    // 小立方体
+    color = cv::imread("../../../grasp/data/images/49_color_0821.jpg");
+    depth = cv::imread("../../../grasp/data/images/49_depth_0821.png", -1);
 
     // 大长方体
-    color = cv::imread("../../../grasp/data/images/old/20_color_0818.jpg");
-    depth = cv::imread("../../../grasp/data/images/old/20_depth_0818.png", -1);
+//    color = cv::imread("../../../grasp/data/images/old/20_color_0818.jpg");
+//    depth = cv::imread("../../../grasp/data/images/old/20_depth_0818.png", -1);
 
 //    color = cv::imread("/home/hustac/test1.jpg");
 //    depth = cv::imread("/home/hustac/test1.png", -1);

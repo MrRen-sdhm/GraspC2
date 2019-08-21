@@ -79,6 +79,9 @@ public:
                                                std::vector<int> &classIds, std::vector<float> &confidences,
                                                std::vector<cv::Rect> &boxes, const cv::Rect& rect, int thresh, int show);
 
+    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> detectSmallCubeTask2(
+            cv::Mat &image, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, int threshColor, int show);
+
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> detectBigCubeTask3(cv::Mat &image,
                             pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, int thresh, int show);
 
@@ -130,41 +133,6 @@ public:
 
     void readCameraInfo(cv::Mat &cameraMatrix);
 
-public:
-    /// 工作区域划分
-    std::vector<int> LU_ = {140, 210}; // 桌面区域左上角点 (x, y)=(col, row)
-    std::vector<int> RD_ = {680, 460}; // 桌面区域右下角点 (x, y)=(col, row)
-    const float LeftOrRightThresh = 400.0; // 左右臂分工阈值, 列数小于阈值为左臂管辖
-    const float WorkAreaThreshL = 280.0; // 左侧工作区域分割阈值
-    const float WorkAreaThreshR = 525.0; // 右侧工作区域分割阈值
-
-    const float lieThreshL = 0.61; // 积木躺着或立着x方向阈值, 左 // 大于此值则为躺着的
-    const float lieThreshR = -0.54; // 积木躺着或立着x方向阈值, 右 // 小于此值即为立着的
-
-    /// 积木抓取固定高度
-    const float height_Lv1_L = 0.29; // 左臂抓取高积木所到深度
-    const float height_Lv1_R = -0.29; // 右臂抓取高积木所到深度
-    // 立着
-//    const float height_Lv2_L = 0.30 - 0.03; // 左臂抓取低积木所到深度
-//    const float height_Lv2_R = -0.30 + 0.03; // 右臂抓取低积木所到深度
-    // 躺着
-    const float height_Lv2_L = 0.345 - 0.03; // 左臂抓取低积木所到深度
-    const float height_Lv2_R = -0.343 + 0.03; // 右臂抓取低积木所到深度
-
-    /// 大长方体抓取固定高度
-    const float height_bigCube_L = 0.33 - 0.03; // 右臂抓取低积木所到深度
-    const float height_bigCube_R = -0.33 + 0.03; // 右臂抓取低积木所到深度
-
-    const float BigCubeT3ThreshL = 0.233; // 左臂抓取大长方体所到深度
-    const float BigCubeT3ThreshR = 0.233; // 右臂抓取大长方体所到深度
-
-private:
-    const double areaThresh = 1300.0; // 积木与立方体轮廓面积区分阈值
-    /// NOTE：值越小离桌面越远
-    const float smallCubeThresh = 0.6; // 在机器人坐标系下, 小立方体x方向坐标阈值 FIXME
-    const float bigCubeThresh = 0.61; // 在机器人坐标系下, 大立方体x方向坐标阈值, 应小于立方体最高点x
-    const float bigBallThresh = 0.60; // 在机器人坐标系下, 大球x方向坐标阈值, 应小于球最高点x, NOTE 值越大分割出的掩码面积越大
-    const float bigCubeTask3Thresh = 0.71; // 在机器人坐标系下, 大长方体x方向坐标阈值, NOTE 越小限制越大
 private:
     /// GPD FIXME
 //    gpd::GraspDetectorPointNet* grasp_detector_; ///< used to run the GPD algorithm
@@ -213,6 +181,42 @@ private:
     const std::vector<double> handEyeAxisAnglexxxxR = {1.5629580337468769e+00, 1.9902480439030915e-01, -9.6514342987439494e-01, 1.6996260473318289e-01};
     const std::vector<double> handEyeTranslationxxxxL = {-8.7732753608050814e+01, -1.5774499240041359e+02, -3.3291232010476563e+02};
     const std::vector<double> handEyeTranslationxxxxR = {8.9986226453914071e+01, -1.6187367033647485e+02, -1.3059369296089841e+02};
+
+public:
+    /// 工作区域划分
+    std::vector<int> LU_ = {130, 195}; // 桌面区域左上角点 (x, y)=(col, row)
+    std::vector<int> RD_ = {680, 460}; // 桌面区域右下角点 (x, y)=(col, row)
+    const float LeftOrRightThresh = 400.0; // 左右臂分工阈值, 列数小于阈值为左臂管辖
+    const float WorkAreaThreshL = 280.0; // 左侧工作区域分割阈值
+    const float WorkAreaThreshR = 525.0; // 右侧工作区域分割阈值
+
+    const float lieThreshL = 0.61; // 积木躺着或立着x方向阈值, 左 // 大于此值则为躺着的
+    const float lieThreshR = -0.54; // 积木躺着或立着x方向阈值, 右 // 小于此值即为立着的
+
+    /// 积木抓取固定高度
+    const float height_Lv1_L = 0.29; // 左臂抓取高积木所到深度
+    const float height_Lv1_R = -0.29; // 右臂抓取高积木所到深度
+    // 立着
+//    const float height_Lv2_L = 0.30 - 0.03; // 左臂抓取低积木所到深度
+//    const float height_Lv2_R = -0.30 + 0.03; // 右臂抓取低积木所到深度
+    // 躺着
+    const float height_Lv2_L = 0.345 - 0.03; // 左臂抓取低积木所到深度
+    const float height_Lv2_R = -0.343 + 0.03; // 右臂抓取低积木所到深度
+
+    /// 大长方体抓取固定高度
+    const float height_bigCube_L = 0.33 - 0.03; // 右臂抓取低积木所到深度
+    const float height_bigCube_R = -0.33 + 0.03; // 右臂抓取低积木所到深度
+
+    const float BigCubeT3ThreshL = 0.233; // 左臂抓取大长方体所到深度
+    const float BigCubeT3ThreshR = 0.233; // 右臂抓取大长方体所到深度
+
+private:
+    const double areaThresh = 1300.0; // 积木与立方体轮廓面积区分阈值
+    /// NOTE：值越小离桌面越远
+    const float smallCubeThresh = 0.67; // 在机器人坐标系下, 小立方体x方向坐标阈值  小立方体最高点 0.6475
+    const float bigCubeThresh = 0.63; // 在机器人坐标系下, 大立方体x方向坐标阈值, 应小于立方体最高点x 立方体最高点 0.62
+    const float bigBallThresh = 0.59; // 在机器人坐标系下, 大球x方向坐标阈值, 应小于球最高点x, NOTE 值越大分割出的掩码面积越大 球最高点 0.562
+    const float bigCubeTask3Thresh = 0.71; // 在机器人坐标系下, 大长方体x方向坐标阈值, NOTE 越小限制越大
 };
 
 #endif //MAGICCUBE_GRAPHICSCUBE_H

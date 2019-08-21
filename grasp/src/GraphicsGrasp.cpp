@@ -178,14 +178,16 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectB
         auto distance = std::distance(LocX.begin(), min_X);
         RawRow = LocRow[distance]; // 在原始图像中的行
         RawCol = LocCol[distance]; // 在原始图像中的列
-        std::cout << "[INFO] 大型物体检测 最高的点是 " << *min_X << " at row:"
-                  << RawRow << " at col: " << RawCol << std::endl;
+        std::cout << "[大型物体检测] 最高点是 " << *min_X << " at row:"
+                  << RawRow << " at col: " << RawCol << std::endl << std::endl;
     } else {
         printf("LocX is empty!\n");
     }
 
     if(show == 1 | show == 2) cv::imshow("mask", mask);
     if(show == 1 | show == 2) cv::imshow("maskHSV", maskHSV);
+//    cv::imwrite("/home/hustac/mask.png", mask);
+//    cv::imwrite("/home/hustac/maskHSV.png", maskHSV);
 
     std::vector<cv::RotatedRect> rotRects;
     cv::Rect box(cv::Point(0, 0), cv::Size(0, 0)); /// 此处不需要目标框
@@ -476,6 +478,208 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectJ
     return RectsAndID;
 }
 
+std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectSmallCubeTask2(
+        cv::Mat &image, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, int threshColor, int show) {
+
+    std::vector<cv::RotatedRect> RotatedRects;
+    std::vector<int> RectsID;
+
+    cv::Mat frame;
+    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotatedRectsAndID;
+
+    cv::resize(image, frame, cv::Size(960, 540)); // 缩小图片
+
+    cv::Mat frame_copy = frame.clone();
+
+    cv::Mat img_hsv;
+    cv::cvtColor(frame, img_hsv, CV_BGR2HSV);
+    if(show == 1 || show == 2) cv::imshow("hsv", img_hsv);
+
+    /// HSV阈值分割获取掩码
+    int thresh_v_high = threshColor; // V通道阈值
+    cv::Point LU(LU_[0], LU_[1]); // 桌面区域左上角点 (x, y)=(col, row)
+    cv::Point RD(RD_[0], RD_[1]); // 桌面区域右下角点 (x, y)=(col, row)
+    cv::Mat maskHSV = cv::Mat::zeros(img_hsv.rows, img_hsv.cols, CV_8U); // 掩码
+    cv::Mat maskTop = cv::Mat::zeros(img_hsv.rows, img_hsv.cols, CV_8U); // 掩码
+
+    std::vector<double> LocX; // HSV阈值分割后点在机器人坐标系下x方向的坐标
+    std::vector<int> LocRow; // HSV阈值分割后点所在行
+    std::vector<int> LocCol; // HSV阈值分割后点所在列
+
+    /// 获取目标区域中所有点机器人坐标系下的实际x坐标 扫描目标区域！
+    for(int r = 0; r < img_hsv.rows; ++r) {
+        const cv::Vec3b *itH = img_hsv.ptr<cv::Vec3b>(r);
+
+        for(int c = 0; c < img_hsv.cols; ++c, ++itH) {
+
+            if (r > LU.y && r < RD.y && c > (int)WorkAreaThreshL && c < (int)WorkAreaThreshR) { /// 限定像素范围为桌面中心区域
+                if (itH->val[0] < 60 && itH->val[2] > thresh_v_high) { /// HSV阈值分割 顶部>255 旁边>120
+
+                    /// 计算当前点在机器人坐标系下的坐标
+                    float center_x, center_y, center_z;
+                    int leftOrRight = 0; // 左臂: 0.66 右臂:-0.60
+                    if (getPointLoc(r, c, center_x, center_y, center_z, cloud)) {
+                        std::vector<float> coorRaw = {center_x, center_y, center_z};
+                        std::vector<double> b2oXYZRPY = calcRealCoor(coorRaw, leftOrRight); // 计算基坐标到物体转换关系
+                        if(show == 1 || show == 2) cout << "当前点在机器人坐标系下的坐标: " << b2oXYZRPY[0] << endl;
+
+                        // 存储当前点的实际x坐标及所在行列
+                        LocX.push_back(b2oXYZRPY[0]);
+                        LocRow.push_back(r);
+                        LocCol.push_back(c);
+                    }
+                }
+            }
+        }
+    }
+
+    /// 处理阈值分割后的坐标 找最高点, 即x最小
+    double MinX = 0;
+    int RawRow, RawCol;
+    if (!LocX.empty()) { // 左侧有物体
+        auto min_X = std::min_element(LocX.begin(), LocX.end());
+        MinX = *min_X;
+
+        auto distance = std::distance(LocX.begin(), min_X);
+        RawRow = LocRow[distance]; // 在原始图像中的行
+        RawCol = LocCol[distance]; // 在原始图像中的列
+        std::cout << "[小立方体检测] 最高点是 " << *min_X << " at row:"
+                  << RawRow << " at col: " << RawCol << std::endl << std::endl;
+    } else {
+        printf("LocX is empty!\n");
+    }
+
+    for (size_t j = 0; j < LocX.size(); j++) {
+        if (LocX[j] < smallCubeThresh) // 截取固定高度以下的点
+        {
+            auto *itM = maskTop.ptr<uint8_t>(LocRow[j]) + LocCol[j];
+            *itM = 255;
+        }
+    }
+
+    /// 获取目标区域掩码
+    if(show == 1 | show == 2) {
+        for(int r = 0; r < img_hsv.rows; ++r) {
+            auto *itM = maskHSV.ptr<uint8_t>(r);
+            const cv::Vec3b *itH = img_hsv.ptr<cv::Vec3b>(r);
+
+            for(int c = 0; c < img_hsv.cols; ++c, ++itM, ++itH) {
+
+                if (r > LU.y && r < RD.y && c > (int)WorkAreaThreshL && c < (int)WorkAreaThreshR) { /// 限定像素范围为桌面中心区域
+                    if (itH->val[0] < 60 && itH->val[2] > thresh_v_high) { /// HSV阈值分割 顶部>255 旁边>120
+                        *itM = 255;
+                    }
+                }
+            }
+        }
+    }
+
+    if(show == 1 || show == 2) cv::imshow("maskHSV", maskHSV);
+    if(show == 1 || show == 2) cv::imshow("maskTop", maskTop);
+
+    /// 计算最小外接矩形
+    cv::Mat maskTopCopy = maskTop.clone(); // 查找轮廓前备份
+    cv::Rect startBox(cv::Point(0, 0), cv::Size(0, 0)); /// 此处起点为960*540图片的0,0点
+    std::vector<cv::RotatedRect> rotRects;
+    int smallCubeID = -1;
+
+    if (calRotatedRect(frame, maskTop, startBox, rotRects, 1, show)) { // 方案2查找轮廓
+        for (size_t ii = 0; ii < rotRects.size(); ii++) {
+            /// 小立方体类别判断 根据孔的面积
+            // 获取旋转矩形ROI区域
+            Point2f center = rotRects[ii].center; // 外接矩形中心点坐标
+            Mat rot_mat = getRotationMatrix2D(center, rotRects[ii].angle, 1.0);//求旋转矩阵
+            Mat rot_image;
+            Size dst_sz(maskTopCopy.size());
+            warpAffine(maskTopCopy, rot_image, rot_mat, dst_sz); // 原图像旋转
+            Mat cubeRoi = rot_image(Rect(center.x - (rotRects[ii].size.width / 2), center.y - (rotRects[ii].size.height/2), rotRects[ii].size.width, rotRects[ii].size.height));//提取ROI
+
+            if (show == 1 || show == 2) {
+//                imshow("rot_image", rot_image);
+                imshow("cubeRoi", cubeRoi);
+                cv::waitKey(0);
+            }
+
+            // 膨胀
+            Mat dilate;
+            //获取自定义核
+            Mat element_dilate = getStructuringElement(MORPH_RECT, Size(3, 3));
+            //膨胀操作
+            cv::dilate(cubeRoi, dilate, element_dilate);
+
+            if (show == 1 || show == 2) {
+                imshow("dilate", dilate);
+            }
+
+            // 所有轮廓查找
+            std::vector<std::vector<cv::Point> > contours;
+            std::vector<cv::Vec4i> hierarchy;
+            findContours(dilate, contours, hierarchy, cv::RETR_LIST, cv::CHAIN_APPROX_SIMPLE);
+
+            if (contours.empty()) continue;
+
+            int index = 0;
+            for (; index >= 0; index = hierarchy[index][0]) {
+                drawContours(frame_copy, contours, index, cv::Scalar(0, 255, 255), 1, 8, hierarchy);
+            }
+
+            /// 查找最小轮廓 即内轮廓
+            double min_area = 0;
+            int minAreaIdx = 0;
+            for (int idx = (int)contours.size() - 1; idx >= 0; idx--) {
+                double tmp_length = fabs(arcLength(contours[idx], true));
+                double tmp_area = fabs(contourArea(contours[idx]));
+
+                if (tmp_area < min_area && tmp_length > 40 && tmp_area > 120) {
+                    min_area = tmp_area;
+                    minAreaIdx = idx; // 记录最小轮廓的索引号
+                }
+            }
+
+            double holeArcLength = fabs(arcLength(contours[minAreaIdx], true)); // 内轮廓的周长
+            double holeArea = fabs(contourArea(contours[minAreaIdx])); // 内轮廓的面积
+
+            printf("[INFO] holeArcLength [%zu]: %f index: %d\n", ii, holeArcLength, minAreaIdx);
+            printf("[INFO] holeArea [%zu]: %f index: %d\n", ii, holeArea, minAreaIdx);
+
+            drawContours(frame_copy, contours, minAreaIdx, cv::Scalar(0, 0, 255), 1, 8, hierarchy);
+
+//            [INFO] holeArcLength [0]: 86.870057 index: 0
+//            [INFO] holeArea [0]: 444.500000 index: 0
+//            [INFO] holeArcLength [1]: 56.041630 index: 0
+//            [INFO] holeArea [1]: 163.500000 index: 0
+//            [INFO] holeArcLength [2]: 71.941125 index: 0
+//            [INFO] holeArea [2]: 313.000000 index: 0
+
+//            [INFO] holeArcLength [0]: 83.213203 index: 0
+//            [INFO] holeArea [0]: 424.500000 index: 0
+//            [INFO] holeArcLength [1]: 59.455844 index: 0
+//            [INFO] holeArea [1]: 166.000000 index: 0
+//            [INFO] holeArcLength [2]: 71.941125 index: 0
+//            [INFO] holeArea [2]: 307.000000 index: 0
+
+            if (holeArea > 350) smallCubeID = 2; // 长方体孔
+            else if (holeArea < 350 && holeArea > 250) smallCubeID = 1; // 圆柱孔
+            else if (holeArea < 250 && holeArea > 100) smallCubeID = 0; // 三棱柱孔
+
+            /// 分类完成 存储
+            RotatedRects.push_back(rotRects[ii]); // 存储外接矩形, 每个积木仅有一个外接矩形
+            RectsID.push_back(smallCubeID); // 存储外接矩形对应的物体类别
+
+            if (show == 1 || show == 2) {
+                std::cout << "minAreaRectOut: center:" << rotRects[ii].center << " angle: " <<
+                          rotRects[0].angle << " size: " << rotRects[ii].size << std::endl;
+
+                imshow("cube Contours", frame_copy);
+                cv::waitKey(0);
+            }
+        }
+    }
+
+    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RectsAndID {RotatedRects, RectsID};
+
+    return RectsAndID;
+}
 
 std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectBigCubeTask3(
         cv::Mat &image, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, int threshColor, int show) {
@@ -605,11 +809,6 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectB
                 std::cout << "minAreaRectOut: center:" << rotRects[ii].center << " angle: " <<
                           rotRects[0].angle << " size: " << rotRects[ii].size << std::endl;
         }
-    }
-
-    if(show == 1 || show == 2) {
-        cv::imshow("detectBigCubeTask3", frame_copy);
-        cv::waitKey(0);
     }
 
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RectsAndID {RotatedRects, RectsID};

@@ -7,6 +7,7 @@
 #include <future>
 #include <stdlib.h>
 #include <sstream>
+#include <math.h>
 
 #include <cobotsys/cobotsys_global_object_factory.h>
 #include <cobotsys/cobotsys_file_finder.h>
