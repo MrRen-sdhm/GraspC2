@@ -705,6 +705,485 @@ bool GraspController::graspControlDual() {
     }
 }
 
+bool GraspController::graspControlTask2() {
+    bool ret = captureImage(-100); // 采集图像
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+    /// 初始位置
+    MoveInit(); // 同步移动到初始位置, 打开手抓
+
+    /// 点云初始化
+    cloudInit();
+
+    printf("\033[0;31m%s\033[0m\n", "================================== 初始化成功 =================================");
+
+    while (true) {
+        printf("\033[0;31m%s\033[0m\n", "================================== 采集图像 =================================");
+        captureImage(-100); // 采集图像
+
+        if (!ret) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            std::cout << "graspGrasp wait capture!" << std::endl;
+            continue;
+        }
+
+        if (_captureImages.frames.empty())
+            return false;
+        if (_captureImages.frames.at(0).data.empty())
+            return false;
+
+        printf("\033[0;31m%s\033[0m\n", "================================== 获取点云 =================================");
+
+        // 创建点云使用1920*1080像素
+        color = _captureImages.frames.at(0).data.clone();
+        depth = _captureImages.frames.at(1).data.clone();
+
+//        color = cv::imread("/home/hustac/rgb.jpg");
+//        depth = cv::imread("/home/hustac/depth.png", -1);
+
+//        color = cv::imread("../../../grasp/data/images/cube1.jpg");
+//        depth = cv::imread("../../../grasp/data/images/cube1.png", -1);
+
+        _graphicsGrasp->createPointCloud(color, depth, cloud); // 创建点云
+
+        if (saveFlag) { // 每次运行程序保存一次数据
+            saveCloudAndImages();
+            saveFlag = false;
+//            exit(1);
+        }
+
+        printf("\033[0;31m%s\033[0m\n", "=================================== 目标检测 ================================");
+
+        bool SmallCubeFlag = false;
+
+        /// 小立方体检测
+        if (PickedSmallCubeCnt < 4) {
+            RotRectsAndID = _graphicsGrasp->detectSmallCubeTask2(color, cloud, 120, 0);
+            if (RotRectsAndID.first.empty()) {
+                printf("[ERROR] Did not get any rot rects!\n");
+                continue;
+            } else SmallCubeFlag = true;
+        }
+
+        /// Yolo积木检测
+        if (!SmallCubeFlag) {
+            RotRectsAndID = _graphicsGrasp->detectGraspYoloPro(color, cloud, 120, 0); // FIXME 需在小立方体放置区域外检测
+            if (RotRectsAndID.first.empty()) {
+                printf("[ERROR] Did not get any rot rects!\n");
+                continue;
+            }
+        }
+
+        printf("\033[0;31m%s\033[0m\n", "=================================== 回初始位置 ===============================");
+        MoveJoints(IniteJoints, Vel_Lv3, Acc_Lv3, 2);
+//        MoveJoints(IniteJointsOld, Vel_Lv3, Acc_Lv3, 2);
+
+        printf("\033[0;31m%s\033[0m\n", "================================= 生成移动任务 ===============================");
+
+        if (!SmallCubeFlag) {
+            // 确定两侧待抓取物体索引
+            std::vector<int> AimObjIndicesLR = _graphicsGrasp->findAimObjLR(RotRectsAndID, 0);
+
+            int moveDevice = -1;
+            int LeftObjID = -1, RightObjID = -1;
+
+            vector<double> targetPose; // 双臂目标位置
+            std::vector<double> targetPoseL, targetPoseR, targetPoseTmpL, targetPoseTmpR;
+            bool HaveObjL = (AimObjIndicesLR[0] != -1), HaveObjR = (AimObjIndicesLR[1] != -1);
+
+            printf("[INFO] Have Object Left[%d] Right[%d]\n", HaveObjL, HaveObjR);
+
+            if ((AimObjIndicesLR[0] != -1)) { // 左侧有物体
+                moveDevice = 0;
+            } else if ((AimObjIndicesLR[0] == -1) && (AimObjIndicesLR[1] != -1)) { // 左侧没物体 右侧有物体
+                moveDevice = 1;
+            } else if ((AimObjIndicesLR[0] = -1) && (AimObjIndicesLR[1] = -1)) continue;
+
+            printf("\033[0;31m%s\033[0m\n", "============================= 移动到积木抓取初始位置 ===========================");
+            MoveJoints(JuggleIniteJoints, Vel_Lv3, Acc_Lv3, 2);
+
+            printf("\033[0;31m%s\033[0m\n", "================================= 移动到正上方 ===============================");
+
+            // NOTE 先抓取左侧物体
+            /// 获取目标位置(左臂)
+            if (AimObjIndicesLR[0] != -1) { // 左侧有物体
+                cv::RotatedRect RotatedRectL = RotRectsAndID.first[AimObjIndicesLR[0]];
+                LeftObjID = RotRectsAndID.second[AimObjIndicesLR[0]];
+                // 获取机器人坐标系下坐标
+                if (!_graphicsGrasp->getObjPose(RotatedRectL, targetPoseL, cloud, 0, 1, 0)) continue; // 短边
+
+                targetPoseTmpL = targetPoseL; // 目标位置副本
+
+                targetPoseTmpL[0] = _graphicsGrasp->height_Lv2_L;
+
+                // 移动到物体上方
+                targetPoseTmpL[4] = 0;
+
+                cout << "[INFO] targetPoseL: " << targetPoseL << endl;
+
+                printf("[INFO] 左臂待抓取物体信息 ID:[%d] Angle:[%f(%f)] Pose:[%f,%f,%f,%f,%f,%f]\n\n",
+                       RotRectsAndID.second[AimObjIndicesLR[0]], targetPoseL[4], R2D(targetPoseL[4]), targetPoseTmpL[0],
+                       targetPoseTmpL[1], targetPoseTmpL[2], targetPoseTmpL[3], targetPoseTmpL[4], targetPoseTmpL[5]);
+            }
+
+            /// 获取目标位置(右臂)
+            if (AimObjIndicesLR[1] != -1 && AimObjIndicesLR[0] == -1) { // 右侧有物体, 左侧没物体
+                cv::RotatedRect RotatedRectR = RotRectsAndID.first[AimObjIndicesLR[1]];
+                RightObjID = RotRectsAndID.second[AimObjIndicesLR[1]];
+                // 获取机器人坐标系下坐标
+                if (!_graphicsGrasp->getObjPose(RotatedRectR, targetPoseR, cloud, 0, 1, 1)) continue;
+                targetPoseTmpR = targetPoseR; // 目标位置副本
+
+                targetPoseTmpR[0] = _graphicsGrasp->height_Lv2_R;
+
+                // 移动到物体上方
+                targetPoseTmpR[4] = 0;
+
+                cout << "[INFO] targetPoseR: " << targetPoseR << endl;
+
+                printf("[INFO] 右臂待抓取物体信息 ID:[%d] Angle:[%f(%f)] Pose:[%f,%f,%f,%f,%f,%f]\n\n",
+                       RotRectsAndID.second[AimObjIndicesLR[1]], targetPoseR[4], R2D(targetPoseR[4]), targetPoseTmpR[0],
+                       targetPoseTmpR[1],
+                       targetPoseTmpR[2], targetPoseTmpR[3], targetPoseTmpR[4], targetPoseTmpR[5]);
+            }
+
+            mergeTargetLR(targetPoseTmpL, targetPoseTmpR, targetPose);
+
+            cout << "[INFO] targetPose: " << targetPose << endl;
+
+            MovePose(targetPose, Vel_Lv1, Acc_Lv1, moveDevice);
+
+            printf("\033[0;31m%s\033[0m\n", "================================= 调整末端姿态 ===============================");
+
+            targetPose = getRobotJoints(2); // 获取当前关节角
+            if (HaveObjL) targetPose[5] += D2R(180 + R2D(targetPoseL[4])); // 获取原始末端关节角, 加补角
+            if (HaveObjR) targetPose[11] += targetPoseR[4]; // 获取原始末端关节角
+
+            MoveJoints(targetPose, Vel_Lv3, Acc_Lv3, 2);
+
+            printf("\033[0;31m%s\033[0m\n", "=============================== 手抓下降并抓取积木 ============================");
+
+            /// 修改姿态, 手臂垂直下降
+            targetPose = getRobotPose(2); // 获取双臂当前位置
+            targetPose[0] += 0.03; // 左臂
+            targetPose[6] -= 0.03; // 右臂
+
+            MovePose(targetPose, Vel_Lv2, Acc_Lv2, moveDevice); // FIXME
+
+            /// 手抓闭合
+            HandClose(0);
+            HandClose(1);
+
+            /// 修改姿态, 手臂垂直抬起
+            targetPoseTmpR[0] += 0.03; // 右臂
+            targetPoseTmpL[0] -= 0.03; // 左臂
+
+            mergeTargetLR(targetPoseTmpL, targetPoseTmpR, targetPose);
+
+            MovePose(targetPose, Vel_Lv1, Acc_Lv1, moveDevice);
+
+            printf("\033[0;31m%s\033[0m\n", "============================== 抓取积木后回初始位置 ============================");
+            MoveJoints(IniteJoints, Vel_Lv3, Acc_Lv3, moveDevice);
+
+            printf("\033[0;31m%s\033[0m\n", "================================= 抓取小立方体 ================================");
+
+            std::vector<double> PickJointsL, PickJointsR, PickJoints;
+            std::vector<std::vector<double>> PickJointsL_T2, PickJointsR_T2; // 抓取位置列表(关节角) NOTE 小立方体抓取位置即为放置位置
+            PickJointsL_T2.push_back(PlaceJointsL1_T2);
+            PickJointsL_T2.push_back(PlaceJointsL2_T2);
+            PickJointsL_T2.push_back(PlaceJointsL3_T2);
+            PickJointsL_T2.push_back(PlaceJointsL4_T2);
+
+            PickJointsR_T2.push_back(PlaceJointsR1_T2);
+            PickJointsR_T2.push_back(PlaceJointsR2_T2);
+            PickJointsR_T2.push_back(PlaceJointsR3_T2);
+            PickJointsR_T2.push_back(PlaceJointsR4_T2);
+
+            // 确保 PickJointsL PickJointsR 都有值
+            PickJointsL = IniteJointsL;
+            PickJointsR = IniteJointsR;
+
+            int CurrObjID; // 当前配对物体ID
+            int AimPlacedCubeIndice = -1; // 配对的小立方体位置索引
+            if (moveDevice == 0) { // 当前左臂抓住积木
+                CurrObjID = LeftObjID;
+                // 寻到对应小立方体位置
+                for (size_t idx = 0; idx < PlacedCubeID.size(); idx++) {
+                    if (PlacedCubeID[idx] == CurrObjID) {
+                        AimPlacedCubeIndice = idx;
+                    }
+                }
+                // 右臂到指定位置抓取积木
+                PickJointsR = PickJointsR_T2[AimPlacedCubeIndice];
+                mergeTargetLR(PickJointsL, PickJointsR, PickJoints);
+                MoveJoints(PickJoints, Vel_Lv3, Acc_Lv3, 1);
+                /// 下降
+                /// 手抓闭合
+                HandClose(0);
+                HandClose(1);
+                printf("\033[0;31m%s\033[0m\n", "============================ 抓取小立方体后回初始位置 ==========================");
+                /// 回初始位置
+                MoveJoints(IniteJoints, Vel_Lv3, Acc_Lv3, 1);
+
+            } else if (moveDevice == 1) { // 当前右臂抓住积木
+                CurrObjID = RightObjID;
+                // 寻到对应小立方体位置
+                for (size_t idx = 0; idx < PlacedCubeID.size(); idx++) {
+                    if (PlacedCubeID[idx] == CurrObjID) {
+                        AimPlacedCubeIndice = idx;
+                    }
+                }
+                // 左臂到指定位置抓取积木
+                PickJointsL = PickJointsL_T2[AimPlacedCubeIndice];
+                mergeTargetLR(PickJointsL, PickJointsR, PickJoints);
+                MoveJoints(PickJoints, Vel_Lv3, Acc_Lv3, 0);
+                /// 下降
+
+                /// 手抓闭合
+                HandClose(0);
+                HandClose(1);
+                printf("\033[0;31m%s\033[0m\n", "============================ 抓取小立方体后回初始位置 ==========================");
+                /// 回初始位置
+                MoveJoints(IniteJoints, Vel_Lv3, Acc_Lv3, 0);
+            }
+
+            printf("\033[0;31m%s\033[0m\n", "============================= 积木和小立方体移动到装配位置 ==========================");
+
+            std::vector<double> TogetherJointsL_, TogetherJointsR_, TogetherJoints;
+            TogetherJointsL_ = TogetherJointsL;
+            TogetherJointsR_ = TogetherJointsR;
+
+            mergeTargetLR(TogetherJointsL_, TogetherJointsR_, TogetherJoints);
+
+            MoveJoints(TogetherJoints, Vel_Lv3, Acc_Lv3, 2);
+
+            printf("\033[0;31m%s\033[0m\n", "===================================== 开始装配 ==================================");
+
+            /// 抓取积木的手臂做插入动作
+            if (moveDevice == 0) { // 当前左臂抓住积木
+                targetPose = getRobotPose(2); // 获取双臂当前位置
+                targetPose[2] -= 0.02; // 左臂
+                MovePose(targetPose, Vel_Lv2, Acc_Lv2, moveDevice);
+            } else if (moveDevice == 1) { // 当前右臂抓住积木
+                targetPose = getRobotPose(2); // 获取双臂当前位置
+                targetPose[8] -= 0.02; // 右臂
+                MovePose(targetPose, Vel_Lv2, Acc_Lv2, moveDevice);
+            }
+
+            /// 抓取积木的手臂松开
+            if (moveDevice == 0) { // 当前左臂抓住积木
+                HandOpen(0);
+                targetPose = getRobotPose(2); // 获取双臂当前位置
+                targetPose[0] -= 0.04; // 左臂
+                MovePose(targetPose, Vel_Lv2, Acc_Lv2, moveDevice);
+            } else if (moveDevice == 1) { // 当前右臂抓住积木
+                HandOpen(1);
+                targetPose = getRobotPose(2); // 获取双臂当前位置
+                targetPose[6] += 0.04; // 右臂
+                MovePose(targetPose, Vel_Lv2, Acc_Lv2, moveDevice);
+            }
+
+            printf("\033[0;31m%s\033[0m\n", "=============================== 装配成功 放置装配体 ==============================");
+
+            /// 抓取装配体的手臂向两侧下方移动
+            if (moveDevice == 0) { // 当前左臂抓住积木, 右臂抓住装配体
+                targetPose = getRobotPose(2); // 获取双臂当前位置
+                targetPose[2] += 0.2; // 左臂 向左
+                targetPose[0] += 0.03; // 左臂 向下
+                MovePose(targetPose, Vel_Lv2, Acc_Lv2, moveDevice);
+                HandOpen(1);
+            } else if (moveDevice == 1) { // 当前右臂抓住积木
+                targetPose = getRobotPose(2); // 获取双臂当前位置, 左臂抓住装配体
+                targetPose[8] += 0.2; // 右臂 向右
+                targetPose[6] -= 0.03; // 右臂 向下
+                MovePose(targetPose, Vel_Lv2, Acc_Lv2, moveDevice);
+                HandOpen(0);
+            }
+
+            printf("\033[0;31m%s\033[0m\n", "============================= 放置装配体成功 回初始位置 ===========================");
+
+            MoveJoints(IniteJoints, Vel_Lv3, Acc_Lv3, 2);
+
+        }
+
+        //////////////////////////////////////////  小立方体  ///////////////////////////////////////////////
+        if (SmallCubeFlag) { /// 有小立方体
+            printf("\033[0;33m[INFO] Detected small cube, begin to pick it up...\033[0m\n");
+
+            // 确定两侧待抓取物体索引
+            std::vector<int> AimObjIndicesLR = _graphicsGrasp->findAimObjLR(RotRectsAndID, 0);
+
+            int moveDevice = -1;
+            int LeftObjID = -1, RightObjID = -1;
+
+            vector<double> targetPose; // 双臂目标位置
+            std::vector<double> targetPoseL, targetPoseR, targetPoseTmpL, targetPoseTmpR;
+            bool HaveObjL = (AimObjIndicesLR[0] != -1), HaveObjR = (AimObjIndicesLR[1] != -1);
+
+            printf("[INFO] Have Object Left[%d] Right[%d]\n", HaveObjL, HaveObjR);
+
+            if ((AimObjIndicesLR[0] != -1) && (AimObjIndicesLR[1] == -1)) { // 左侧有物体
+                moveDevice = 0;
+            } else if ((AimObjIndicesLR[0] == -1) && (AimObjIndicesLR[1] != -1)) { // 右侧有物体
+                moveDevice = 1;
+            } else if ((AimObjIndicesLR[0] != -1) && (AimObjIndicesLR[1] != -1)) { // 两侧有物体
+                moveDevice = 2;
+            } else if ((AimObjIndicesLR[0] = -1) && (AimObjIndicesLR[1] = -1)) continue;
+
+            printf("\033[0;31m%s\033[0m\n", "============================ 移动到小立方体抓取初始位置 =========================");
+            MoveJoints(JuggleIniteJoints, Vel_Lv3, Acc_Lv3, 2);
+
+            printf("\033[0;31m%s\033[0m\n", "================================== 移动到正上方 ==============================");
+
+            /// 获取目标位置(左臂)
+            if (AimObjIndicesLR[0] != -1) { // 左侧有物体
+                cv::RotatedRect RotatedRectL = RotRectsAndID.first[AimObjIndicesLR[0]];
+                LeftObjID = RotRectsAndID.second[AimObjIndicesLR[0]];
+                // 获取机器人坐标系下坐标
+                if (!_graphicsGrasp->getObjPose(RotatedRectL, targetPoseL, cloud, 0, 1, 0, 8.0)) continue; // 短边
+
+                targetPoseTmpL = targetPoseL; // 目标位置副本
+
+                targetPoseTmpL[0] = _graphicsGrasp->height_Lv2_L;
+
+                // 移动到物体上方
+                targetPoseTmpL[4] = 0;
+
+                cout << "[INFO] targetPoseL: " << targetPoseL << endl;
+
+                printf("[INFO] 左臂待抓取物体信息 ID:[%d] Angle:[%f(%f)] Pose:[%f,%f,%f,%f,%f,%f]\n\n",
+                       RotRectsAndID.second[AimObjIndicesLR[0]], targetPoseL[4], R2D(targetPoseL[4]), targetPoseTmpL[0],
+                       targetPoseTmpL[1], targetPoseTmpL[2], targetPoseTmpL[3], targetPoseTmpL[4], targetPoseTmpL[5]);
+            }
+
+            /// 获取目标位置(右臂)
+            if (AimObjIndicesLR[1] != -1) { // 右侧有物体
+                cv::RotatedRect RotatedRectR = RotRectsAndID.first[AimObjIndicesLR[1]];
+                RightObjID = RotRectsAndID.second[AimObjIndicesLR[1]];
+                // 获取机器人坐标系下坐标
+                if (!_graphicsGrasp->getObjPose(RotatedRectR, targetPoseR, cloud, 0, 1, 1, 8.0)) continue;
+                targetPoseTmpR = targetPoseR; // 目标位置副本
+
+                targetPoseTmpR[0] = _graphicsGrasp->height_Lv2_R;
+
+                // 移动到物体上方
+                targetPoseTmpR[4] = 0;
+
+                cout << "[INFO] targetPoseR: " << targetPoseR << endl;
+
+                printf("[INFO] 右臂待抓取物体信息 ID:[%d] Angle:[%f(%f)] Pose:[%f,%f,%f,%f,%f,%f]\n\n",
+                       RotRectsAndID.second[AimObjIndicesLR[1]], targetPoseR[4], R2D(targetPoseR[4]), targetPoseTmpR[0],
+                       targetPoseTmpR[1],
+                       targetPoseTmpR[2], targetPoseTmpR[3], targetPoseTmpR[4], targetPoseTmpR[5]);
+            }
+
+            /// 处理待抓取的两个物体靠的太近
+            if (AimObjIndicesLR[0] != -1 && AimObjIndicesLR[1] != -1) {
+                float distance = RotRectsAndID.first[AimObjIndicesLR[1]].center.x -
+                                 RotRectsAndID.first[AimObjIndicesLR[0]].center.x;
+                printf("[INFO] Distance between Obj in pix: %f\n", distance);
+                if (distance < 100) { // FIXME
+                    printf("\033[0;32m%s\033[0m\n",
+                           "[WARN] Distance is too short between the Objects, left arm first!\n");
+                    moveDevice = 0; // 物体靠的太近, 左臂优先
+                }
+            }
+
+            mergeTargetLR(targetPoseTmpL, targetPoseTmpR, targetPose);
+
+            cout << "[INFO] targetPose: " << targetPose << endl;
+
+            MovePose(targetPose, Vel_Lv1, Acc_Lv1, moveDevice);
+
+            printf("\033[0;31m%s\033[0m\n", "================================= 调整末端姿态 ===============================");
+
+            targetPose = getRobotJoints(2); // 获取当前关节角
+            if (HaveObjL) targetPose[5] += D2R(180 + R2D(targetPoseL[4])); // 获取原始末端关节角, 加补角
+            if (HaveObjR) targetPose[11] += targetPoseR[4]; // 获取原始末端关节角
+
+            MoveJoints(targetPose, Vel_Lv3, Acc_Lv3, 2);
+
+            printf("\033[0;31m%s\033[0m\n", "================================= 手抓下降并抓取 ==============================");
+
+            /// 修改姿态, 手臂垂直下降
+            targetPose = getRobotPose(2); // 获取双臂当前位置
+            targetPose[0] += 0.03; // 左臂
+            targetPose[6] -= 0.03; // 右臂
+
+            MovePose(targetPose, Vel_Lv2, Acc_Lv2, moveDevice);
+
+            /// 手抓闭合
+            HandClose(0);
+            HandClose(1);
+
+            /// 修改姿态, 手臂垂直抬起
+            targetPoseTmpR[0] += 0.03; // 右臂
+            targetPoseTmpL[0] -= 0.03; // 左臂
+
+            mergeTargetLR(targetPoseTmpL, targetPoseTmpR, targetPose);
+
+            MovePose(targetPose, Vel_Lv1, Acc_Lv1, moveDevice);
+
+            printf("\033[0;31m%s\033[0m\n", "================================= 放置到指定位置 ==============================");
+
+            std::vector<double> PlaceJointsL, PlaceJointsR, PlaceJoints; // 左右臂目标关节角
+
+            std::vector<std::vector<double>> PlaceJointsL_T2, PlaceJointsR_T2; // 放置位置列表(关节角)
+            PlaceJointsL_T2.push_back(PlaceJointsL1_T2);
+            PlaceJointsL_T2.push_back(PlaceJointsL2_T2);
+            PlaceJointsL_T2.push_back(PlaceJointsL3_T2);
+            PlaceJointsL_T2.push_back(PlaceJointsL4_T2);
+
+            PlaceJointsR_T2.push_back(PlaceJointsR1_T2);
+            PlaceJointsR_T2.push_back(PlaceJointsR2_T2);
+            PlaceJointsR_T2.push_back(PlaceJointsR3_T2);
+            PlaceJointsR_T2.push_back(PlaceJointsR4_T2);
+
+            // 确保 PlaceJointsL PlaceJointsR 都有值
+            PlaceJointsL = IniteJointsL;
+            PlaceJointsR = IniteJointsR;
+
+            if (moveDevice == 2) { // 小积木块放置在中间，不可双臂同时放置
+                // 先左臂
+                PlaceJointsL = PlaceJointsL_T2[PickedSmallCubeCnt]; // 按顺序放置到指定位置
+                mergeTargetLR(PlaceJointsL, PlaceJointsR, PlaceJoints);
+                MoveJoints(PlaceJoints, Vel_Lv3, Acc_Lv3, 0); // 放置物体
+
+                PlacedCubeID[PickedSmallCubeCnt] = LeftObjID;
+                PickedSmallCubeCnt++;
+                // 后右臂
+                PlaceJointsR = PlaceJointsR_T2[PickedSmallCubeCnt]; // 按顺序放置到指定位置
+                mergeTargetLR(PlaceJointsL, PlaceJointsR, PlaceJoints);
+                MoveJoints(PlaceJoints, Vel_Lv3, Acc_Lv3, 1); // 放置物体
+
+                PlacedCubeID[PickedSmallCubeCnt] = RightObjID;
+                PickedSmallCubeCnt++;
+            } else {
+                MoveJoints(PlaceJoints, Vel_Lv3, Acc_Lv3, moveDevice); // 放置物体
+                if (moveDevice == 0) {
+                    PlaceJointsL = PlaceJointsL_T2[PickedSmallCubeCnt]; // 按顺序放置到指定位置
+                    mergeTargetLR(PlaceJointsL, PlaceJointsR, PlaceJoints);
+                    MoveJoints(PlaceJoints, Vel_Lv3, Acc_Lv3, 0); // 放置物体
+                    PlacedCubeID[PickedSmallCubeCnt] = LeftObjID;
+                } else if (moveDevice == 1) {
+                    PlaceJointsR = PlaceJointsR_T2[PickedSmallCubeCnt]; // 按顺序放置到指定位置
+                    mergeTargetLR(PlaceJointsL, PlaceJointsR, PlaceJoints);
+                    MoveJoints(PlaceJoints, Vel_Lv3, Acc_Lv3, 1); // 放置物体
+                    PlacedCubeID[PickedSmallCubeCnt] = RightObjID;
+                }
+
+                PickedSmallCubeCnt++;
+            }
+
+            /// 手抓张开
+            HandOpen(0);
+            HandOpen(1);
+
+            printf("\033[0;31m%s\033[0m\n\n\n", "=============================== 小立方体抓取放置成功 ==============================");
+        }
+    }
+}
+
 bool GraspController::graspControlBigCubeT3() {
     bool ret = captureImage(-100); // 采集图像
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));

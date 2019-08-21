@@ -85,6 +85,8 @@ private:
     // 双臂同时抓取
     bool graspControlDual();
 
+    bool graspControlTask2();
+
     // 双臂同时抓取大长方体
     bool graspControlBigCubeT3();
 
@@ -209,6 +211,9 @@ private:
 
     bool BallPicked = false;
     int PickedBigCubeCnt = 0; // 已抓取积木数
+    int PickedSmallCubeCnt = 0; // 已抓取小立方体数
+
+    std::vector<int> PlacedCubeID; // 存储四个位置对应的小立方体ID
 
     /// 垂直抓取相关位置
     // 起始位置
@@ -245,26 +250,57 @@ private:
     const std::vector<double> MiddlePose = {1.62, 0.920, -1.92, -0.64, 0.026, 0.00,
                                             -1.62, 0.920, 1.92, 0.64, -0.026, 0.00};
 
-    // 放置位置
+    /// 积木放置位置
     const std::vector<double> EndJoints = {D2R(97.402), D2R(93.306), D2R(-69.662), D2R(19.228), D2R(9.333), D2R(-169.197),
                                            D2R(-92.52), D2R(-104.37), D2R(12.86), D2R(-40.35), D2R(-4.63), D2R(157.63)};
-    // 左侧放置位置1 FIXME
+    // 左侧放置位置1
     const std::vector<double> PlaceJointsL1 = {D2R(92.273), D2R(34.669), D2R(-121.205), D2R(19.228), D2R(2.178), D2R(-97.334)};
 
-    // 左侧放置位置2 FIXME
+    // 左侧放置位置2
     const std::vector<double> PlaceJointsL2 = {D2R(91.706), D2R(44.431), D2R(-98.776), D2R(36.571), D2R(1.611), D2R(-97.276)};
 
-    // 左侧放置位置3 FIXME
+    // 左侧放置位置3
     const std::vector<double> PlaceJointsL3 = {D2R(91.459), D2R(52.591), D2R(-81.059), D2R(46.086), D2R(1.364), D2R(-97.236)};
 
-    // 右侧放置位置1 FIXME
+    // 右侧放置位置1
     const std::vector<double> PlaceJointsR1 = {D2R(-92.273), D2R(-34.699), D2R(121.205), D2R(-19.228), D2R(-2.178), D2R(97.334)};
 
-    // 右侧放置位置2 FIXME
+    // 右侧放置位置2
     const std::vector<double> PlaceJointsR2 = {D2R(-91.706), D2R(-44.431), D2R(98.776), D2R(-36.571), D2R(-1.611), D2R(97.276)};
 
-    // 右侧放置位置3 FIXME
+    // 右侧放置位置3
     const std::vector<double> PlaceJointsR3 = {D2R(-91.459), D2R(-52.591), D2R(81.059), D2R(-46.086), D2R(-1.364), D2R(97.236)};
+
+    /// 任务2小立方体放置位置
+    // 放置位置1-左臂 FIXME
+    const std::vector<double> PlaceJointsL1_T2 = {D2R(92.273), D2R(34.669), D2R(-121.205), D2R(19.228), D2R(2.178), D2R(-97.334)};
+
+    // 放置位置2-左臂 FIXME
+    const std::vector<double> PlaceJointsL2_T2 = {D2R(91.706), D2R(44.431), D2R(-98.776), D2R(36.571), D2R(1.611), D2R(-97.276)};
+
+    // 放置位置3-左臂 FIXME
+    const std::vector<double> PlaceJointsL3_T2 = {D2R(91.459), D2R(52.591), D2R(-81.059), D2R(46.086), D2R(1.364), D2R(-97.236)};
+
+    // 放置位置4-左臂 FIXME
+    const std::vector<double> PlaceJointsL4_T2 = {D2R(91.459), D2R(52.591), D2R(-81.059), D2R(46.086), D2R(1.364), D2R(-97.236)};
+
+    // 放置位置1-右臂 FIXME
+    const std::vector<double> PlaceJointsR1_T2 = {D2R(-92.273), D2R(-34.699), D2R(121.205), D2R(-19.228), D2R(-2.178), D2R(97.334)};
+
+    // 放置位置2-右臂  FIXME
+    const std::vector<double> PlaceJointsR2_T2 = {D2R(-91.706), D2R(-44.431), D2R(98.776), D2R(-36.571), D2R(-1.611), D2R(97.276)};
+
+    // 放置位置3-右臂  FIXME
+    const std::vector<double> PlaceJointsR3_T2 = {D2R(-91.459), D2R(-52.591), D2R(81.059), D2R(-46.086), D2R(-1.364), D2R(97.236)};
+
+    // 放置位置4-右臂  FIXME
+    const std::vector<double> PlaceJointsR4_T2 = {D2R(-91.459), D2R(-52.591), D2R(81.059), D2R(-46.086), D2R(-1.364), D2R(97.236)};
+
+    /// 任务2装配位置
+    // 装配位置-左臂 FIXME
+    const std::vector<double> TogetherJointsL = {D2R(92.273), D2R(34.669), D2R(-121.205), D2R(19.228), D2R(2.178), D2R(-97.334)};
+    // 装配位置-右臂 FIXME
+    const std::vector<double> TogetherJointsR = {D2R(92.273), D2R(34.669), D2R(-121.205), D2R(19.228), D2R(2.178), D2R(-97.334)};
 
     /// 水平抓取相关位置
     // 平着

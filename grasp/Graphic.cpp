@@ -7,12 +7,13 @@ void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID, RotRectsAndIDTop;
     std::vector<double> Pose;
 
-    const int juggleOrCube = 1; /// 0为积木, 1为大型物体
+    const int juggleOrCube = 0; /// 0为积木, 1为大型物体
 
     if (juggleOrCube == 0) {
         /// Yolo积木检测
 //        RotRectsAndID = _graphicsGrasp->detectGraspYolo(color, 200, 2);
-        RotRectsAndID = _graphicsGrasp->detectGraspYoloPro(color, cloud, 120, 1);
+//        RotRectsAndID = _graphicsGrasp->detectGraspYoloPro(color, cloud, 120, 1);
+        RotRectsAndID = _graphicsGrasp->detectGraspYoloProT2(color, cloud, 120, 1);
     } else if (juggleOrCube == 1) {
         /// 大型物体检测
 //        RotRectsAndID = _graphicsGrasp->detectBigObj(color, cloud, 2, 200, 0.7, 2); // 检测大正方体, 高阈值 NOTE:检测大球和大正方体使用的阈值不一样

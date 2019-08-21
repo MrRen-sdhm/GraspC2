@@ -71,6 +71,9 @@ public:
     // show: 1-全部显示 2-逐个显示 其他-不显示
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> detectGraspYoloPro(cv::Mat &image, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, int thresh, int show);
 
+    // show: 1-全部显示 2-逐个显示 其他-不显示
+    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> detectGraspYoloProT2(cv::Mat &image, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, int thresh, int show);
+
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> getRotRectsAndID(cv::Mat &image,
                                                 std::vector<int> &classIds, std::vector<float> &confidences,
                                                 std::vector<cv::Rect> &boxes, const cv::Rect& rect, int thresh, int show);
@@ -189,6 +192,7 @@ public:
     const float LeftOrRightThresh = 400.0; // 左右臂分工阈值, 列数小于阈值为左臂管辖
     const float WorkAreaThreshL = 280.0; // 左侧工作区域分割阈值
     const float WorkAreaThreshR = 525.0; // 右侧工作区域分割阈值
+    const float WorkAreaThreshSmallCube = 50; // 小立方体工作区域分割阈值, 在RD_[1] 基础上减此值
 
     const float lieThreshL = 0.61; // 积木躺着或立着x方向阈值, 左 // 大于此值则为躺着的
     const float lieThreshR = -0.54; // 积木躺着或立着x方向阈值, 右 // 小于此值即为立着的

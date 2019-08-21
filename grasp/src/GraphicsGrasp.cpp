@@ -90,6 +90,30 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectG
     return RotatedRectsAndID;
 }
 
+std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectGraspYoloProT2(cv::Mat &image,
+                                                pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, int thresh, int show)
+{
+    printf("\n[FUNC] Detect Grasp Yolo Pro Task2...\n");
+    cv::Mat resized;
+    std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotatedRectsAndID;
+
+    cv::resize(image, resized, cv::Size(960, 540)); // 缩小图片
+
+    std::vector<int> classIds;
+    std::vector<float> confidences;
+    std::vector<cv::Rect> boxes;
+
+    cv::Rect rect(cv::Point(WorkAreaThreshL, LU_[1]), cv::Size(WorkAreaThreshR - WorkAreaThreshL,
+            (RD_[1] - WorkAreaThreshSmallCube) - LU_[1]));
+    yoloDetector->detectObj(resized, classIds, confidences, boxes, rect, thresh, show);
+
+    RotatedRectsAndID = detectJuggles(resized, cloud, classIds, confidences, boxes, rect, thresh, show);
+
+    printf("[INFO] Detected %zu rotated rects.\n", RotatedRectsAndID.first.size());
+
+    return RotatedRectsAndID;
+}
+
 std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectBigObj(cv::Mat &image,
                  pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, int objLev, int threshColor, float threshLoc, int show)
 {
@@ -663,8 +687,10 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectS
             else if (holeArea < 250 && holeArea > 100) smallCubeID = 0; // 三棱柱孔
 
             /// 分类完成 存储
-            RotatedRects.push_back(rotRects[ii]); // 存储外接矩形, 每个积木仅有一个外接矩形
-            RectsID.push_back(smallCubeID); // 存储外接矩形对应的物体类别
+            if (rotRects[ii].center.y < (float)(RD_[1] - WorkAreaThreshSmallCube)) { /// 仅存储工作区域内的
+                RotatedRects.push_back(rotRects[ii]); // 存储外接矩形, 每个积木仅有一个外接矩形
+                RectsID.push_back(smallCubeID); // 存储外接矩形对应的物体类别
+            }
 
             if (show == 1 || show == 2) {
                 std::cout << "minAreaRectOut: center:" << rotRects[ii].center << " angle: " <<
@@ -902,13 +928,13 @@ bool GraphicsGrasp::calRotatedRect(cv::Mat img, cv::Mat mask, const cv::Rect& bo
             cv::circle(img, rotRects[idx].center, 1, cv::Scalar(0, 0, 255), 2);
 
             cv::Point2f P1;
-            P1.x = P[0].x + (P[2].x - P[0].x) / 3;
-            P1.y = P[0].y + (P[2].y - P[0].y) / 3;
+            P1.x = P[0].x + (P[2].x - P[0].x) / 8;
+            P1.y = P[0].y + (P[2].y - P[0].y) / 8;
             cv::circle(img, P1, 1, cv::Scalar(255, 0, 0), 2);
 
             cv::Point2f P2;
-            P2.x = P[0].x + (P[2].x - P[0].x) * 2 / 3;
-            P2.y = P[0].y + (P[2].y - P[0].y) * 2 / 3;
+            P2.x = P[0].x + (P[2].x - P[0].x) * 7 / 8;
+            P2.y = P[0].y + (P[2].y - P[0].y) * 7 / 8;
             cv::circle(img, P2, 1, cv::Scalar(255, 0, 0), 2);
 
             // 重新计算中心点
@@ -1319,11 +1345,19 @@ void GraphicsGrasp::showWorkArea(cv::Mat &image) {
     cv::Point AreaLeftRightLU(LU_[0], LU_[1]); // 桌面区域左上角点 (x, y)=(col, row)
     cv::Point AreaLeftRightRD(LeftOrRightThresh, RD_[1]); // 桌面区域右下角点 (x, y)=(col, row)
 
+    // 小立方体放置区域
+    cv::Point AreaSmallCubeLU(LU_[0], RD_[1] - WorkAreaThreshSmallCube); // 桌面区域左上角点 (x, y)=(col, row)
+    cv::Point AreaSmallCubeRD(RD_[0], RD_[1]); // 桌面区域右下角点 (x, y)=(col, row)
+
     rectangle(frame, LU, RD, cv::Scalar(255, 178, 50), 1);
     rectangle(frame, AreaLeftLU, AreaLeftRD, cv::Scalar(255, 178, 50), 1);
     rectangle(frame, AreaMiddleLU, AreaMiddleRD, cv::Scalar(255, 178, 50), 1);
     rectangle(frame, AreaRightLU, AreaRightRD, cv::Scalar(255, 178, 50), 1);
     rectangle(frame, AreaLeftRightLU, AreaLeftRightRD, cv::Scalar(255, 178, 50), 1);
+    rectangle(frame, AreaSmallCubeLU, AreaSmallCubeRD, cv::Scalar(0, 255, 0), 1);
+
+    rectangle(frame, cv::Rect (cv::Point(WorkAreaThreshL, LU_[1]), cv::Size(WorkAreaThreshR - WorkAreaThreshL,
+            (RD_[1] - WorkAreaThreshSmallCube ) - LU_[1])), cv::Scalar(0, 255, 255), 1);
 
     cv::Rect rect(cv::Point(LU_[0], LU_[1]), cv::Size(RD_[0]-LU_[0], RD_[1]-LU_[1]));
     rectangle(frame, rect, cv::Scalar(0, 0, 255), 1);
