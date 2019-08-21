@@ -20,17 +20,17 @@ void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat
         /// 正方体/球检测
         std::pair<cv::RotatedRect, int> BigBallRect, BigCubeRect;
 
-        if(_graphicsGrasp->detectBigBall(color, cloud, BigBallRect, 1)) {
-            RotRectsAndID.first.push_back(BigBallRect.first);
-            RotRectsAndID.second.push_back(BigBallRect.second);
-        }
+//        if(_graphicsGrasp->detectBigBall(color, cloud, BigBallRect, 1)) {
+//            RotRectsAndID.first.push_back(BigBallRect.first);
+//            RotRectsAndID.second.push_back(BigBallRect.second);
+//        }
 
 //        if(_graphicsGrasp->detectBigCube(color, cloud, BigCubeRect, true)) {
 //            RotRectsAndID.first.push_back(BigCubeRect.first);
 //            RotRectsAndID.second.push_back(BigCubeRect.second);
 //        }
 
-        // 大长方体检测
+# if 1 /// 大长方体检测
         RotRectsAndID = _graphicsGrasp->detectBigCubeTask3(color, cloud, 120, 1);
 
         std::vector<std::pair<float, float>> PointListL, PointListR; // 存储所有点对
@@ -143,6 +143,7 @@ void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat
                b2oXYZRPYL[2], b2oXYZRPYL[3], b2oXYZRPYL[4], b2oXYZRPYL[5]);
         printf("[INFO] 右侧抓取点机器人坐标: [%f,%f,%f,%f,%f,%f]\n", b2oXYZRPYR[0], b2oXYZRPYR[1],
                b2oXYZRPYR[2], b2oXYZRPYR[3], b2oXYZRPYR[4], b2oXYZRPYR[5]);
+#endif
     }
 
 #if 0  /// 左右臂目标物体确定
@@ -190,7 +191,7 @@ void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat
 
     for (size_t i = 0; i < RotRectsAndID.first.size(); i++) {
 
-        _graphicsGrasp->getObjPose(RotRectsAndID.first[i], Pose, cloud, juggleOrCube, 0, 1);
+        _graphicsGrasp->getObjPose(RotRectsAndID.first[i], Pose, cloud, juggleOrCube, 0, 1, 3.0);
 
         /// 显示目标物体外接矩形
         cv::Point2f P[4];
@@ -242,8 +243,13 @@ int main(int argc, char** argv)
 
     cv::Mat color, depth;
 
-    color = cv::imread("../../../grasp/data/images/27_color_0820.jpg");
-    depth = cv::imread("../../../grasp/data/images/27_depth_0820.png", -1);
+    // 球
+//    color = cv::imread("../../../grasp/data/images/27_color_0820.jpg");
+//    depth = cv::imread("../../../grasp/data/images/27_depth_0820.png", -1);
+
+    // 大长方体
+    color = cv::imread("../../../grasp/data/images/old/20_color_0818.jpg");
+    depth = cv::imread("../../../grasp/data/images/old/20_depth_0818.png", -1);
 
 //    color = cv::imread("/home/hustac/test1.jpg");
 //    depth = cv::imread("/home/hustac/test1.png", -1);

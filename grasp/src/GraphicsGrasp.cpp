@@ -23,7 +23,7 @@ namespace {
 GraphicsGrasp::GraphicsGrasp()
 {
     /// gpd 初始化
-//    grasp_detector_ = new gpd::GraspDetectorPointNet(gpd_cfg_file); // TODO
+//    grasp_detector_ = new gpd::GraspDetectorPointNet(gpd_cfg_file); // FIXME
 
     /// yolo 初始化
     yoloDetector = new YoloDetector(yolo_config_filename, yolo_weights_filename);
@@ -551,28 +551,29 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectB
         }
     }
 
-    Mat erode;
-    //获取自定义核
-    Mat element_erode = getStructuringElement(MORPH_RECT, Size(7, 7));
-    //腐蚀操作
-    cv::erode(maskTop, erode, element_erode);
-
-    Mat dilate;
-    //获取自定义核
-    Mat element_dilate = getStructuringElement(MORPH_RECT, Size(5, 5));
-    //膨胀操作
-    cv::dilate(erode, dilate, element_dilate);
+//    Mat erode;
+//    //获取自定义核
+//    Mat element_erode = getStructuringElement(MORPH_RECT, Size(7, 7));
+//    //腐蚀操作
+//    cv::erode(maskTop, erode, element_erode);
+//
+//    Mat dilate;
+//    //获取自定义核
+//    Mat element_dilate = getStructuringElement(MORPH_RECT, Size(5, 5));
+//    //膨胀操作
+//    cv::dilate(erode, dilate, element_dilate);
 
     if(show == 1 || show == 2) cv::imshow("maskHSV", maskHSV);
     if(show == 1 || show == 2) cv::imshow("maskTop", maskTop);
-    if(show == 1 || show == 2) cv::imshow("erode", erode);
-    if(show == 1 || show == 2) cv::imshow("dilate", dilate);
+//    if(show == 1 || show == 2) cv::imshow("erode", erode);
+//    if(show == 1 || show == 2) cv::imshow("dilate", dilate);
 
     /// 计算最小外接矩形
     cv::Rect startBox(cv::Point(0, 0), cv::Size(0, 0)); /// 此处起点为960*540图片的0,0点
     std::vector<cv::RotatedRect> rotRects;
 
-    if (calRotatedRect(frame, dilate, startBox, rotRects, 1, show)) { // 方案2查找轮廓
+//    if (calRotatedRect(frame, dilate, startBox, rotRects, 1, show)) { // 方案2查找轮廓
+    if (calRotatedRect(frame, maskTop, startBox, rotRects, 1, show)) { // 方案2查找轮廓
         for (size_t ii = 0; ii < rotRects.size(); ii++) {
             RotatedRects.push_back(rotRects[ii]); // 存储外接矩形, 每个积木仅有一个外接矩形
             RectsID.push_back(7); // 存储外接矩形对应的物体类别
@@ -582,11 +583,11 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectB
                           rotRects[0].angle << " size: " << rotRects[ii].size << std::endl;
         }
     }
-//
-//    if(show == 1 || show == 2) {
-//        cv::imshow("detectBigCubeTask3", frame_copy);
-//        cv::waitKey(0);
-//    }
+
+    if(show == 1 || show == 2) {
+        cv::imshow("detectBigCubeTask3", frame_copy);
+        cv::waitKey(0);
+    }
 
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RectsAndID {RotatedRects, RectsID};
 
@@ -679,13 +680,14 @@ bool GraphicsGrasp::calRotatedRect(cv::Mat img, cv::Mat mask, const cv::Rect& bo
             cv::circle(img, rotRects[idx].center, 1, cv::Scalar(0, 0, 255), 2);
 
             cv::Point2f P1;
-            P1.x = P[0].x + (P[2].x - P[0].x) / 8;
-            P1.y = P[0].y + (P[2].y - P[0].y) / 8;
+            P1.x = P[0].x + (P[2].x - P[0].x) / 3;
+            P1.y = P[0].y + (P[2].y - P[0].y) / 3;
+            cv::circle(img, P1, 1, cv::Scalar(255, 0, 0), 2);
 
             cv::Point2f P2;
-            P2.x = P[0].x + (P[2].x - P[0].x) * 7 / 8;
-            P2.y = P[0].y + (P[2].y - P[0].y) * 7 / 8;
-            cv::circle(img, P2, 1, cv::Scalar(0, 255, 0), 2);
+            P2.x = P[0].x + (P[2].x - P[0].x) * 2 / 3;
+            P2.y = P[0].y + (P[2].y - P[0].y) * 2 / 3;
+            cv::circle(img, P2, 1, cv::Scalar(255, 0, 0), 2);
 
             // 重新计算中心点
             cv::Point2f P0;
@@ -905,7 +907,8 @@ std::vector<double> GraphicsGrasp::calcRealCoor(std::vector<float> coorRaw, int 
 }
 
 bool GraphicsGrasp::getObjPose(cv::RotatedRect& RotRect, std::vector<double> &b2oXYZRPY,
-            const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr& cloud, int towPointOrNot, int longOrshort, int leftOrRight) {
+                                    const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr& cloud, int towPointOrNot,
+                                    int longOrshort, int leftOrRight, float scale) {
     printf("\n[FUNC] Get Object Poses ...\n");
     int row = 0, col = 0;
     float center_x = 0, center_y = 0, center_z = 0;
@@ -931,12 +934,12 @@ bool GraphicsGrasp::getObjPose(cv::RotatedRect& RotRect, std::vector<double> &b2
         RotRect.points(P);
 
         cv::Point2f P1; // 对角线1/4处点
-        P1.x = P[0].x + (P[2].x - P[0].x)/8;
-        P1.y = P[0].y + (P[2].y - P[0].y)/8;
+        P1.x = P[0].x + (P[2].x - P[0].x)/scale;
+        P1.y = P[0].y + (P[2].y - P[0].y)/scale;
 
         cv::Point2f P2; // 对角线3/4处点
-        P2.x = P[0].x + (P[2].x - P[0].x)*7/8;
-        P2.y = P[0].y + (P[2].y - P[0].y)*7/8;
+        P2.x = P[0].x + (P[2].x - P[0].x)*(scale-1)/scale;
+        P2.y = P[0].y + (P[2].y - P[0].y)*(scale-1)/scale;
 
         // 获取实际位置1
         row = (int)P1.y;

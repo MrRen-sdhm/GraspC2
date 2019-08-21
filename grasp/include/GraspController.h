@@ -152,6 +152,7 @@ private:
 //            axis = rotMatrixs[i].col(2);
 //        }
 //    }
+
 /// ******************************* YOLO ******************************* ///
 private:
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID;
@@ -206,6 +207,7 @@ private:
     const double Acc_Lv3 = 3.0;
 
     bool BallPicked = false;
+    int PickedBigCubeCnt = 0; // 已抓取积木数
 
     /// 垂直抓取相关位置
     // 起始位置

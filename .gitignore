@@ -21,6 +21,9 @@ build/
 *.tar
 *.gz
 *.weights
+*.pcd
+*.png
+*.jpg
 
 # Executables
 *.swf

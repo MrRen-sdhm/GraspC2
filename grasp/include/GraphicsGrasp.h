@@ -11,7 +11,7 @@
 
 #include <pcl/io/pcd_io.h>
 
-// GPD
+// GPD FIXME
 //#include <gpd/util/cloud.h>
 //#include <gpd/grasp_detector_pointnet.h>
 
@@ -108,7 +108,8 @@ public:
 
     /// 获取物体姿态和ID towPointOrNot: 0-单点计算坐标 1-两点计算平均坐标 longOrshort: 0为长边 leftOrRight: 0为左臂
     bool getObjPose(cv::RotatedRect& RotRect, std::vector<double> &b2oXYZRPY,
-            const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr& cloud, int towPointOrNot, int longOrshort, int leftOrRight);
+            const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr& cloud, int towPointOrNot,
+            int longOrshort, int leftOrRight, float scale = 8.0);
 
     bool getPointLoc (int row, int col, float &loc_x, float &loc_y, float &loc_z,
                              const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr& cloud);
@@ -140,10 +141,15 @@ public:
     const float lieThreshL = 0.61; // 积木躺着或立着x方向阈值, 左 // 大于此值则为躺着的
     const float lieThreshR = -0.54; // 积木躺着或立着x方向阈值, 右 // 小于此值即为立着的
 
+    /// 积木抓取固定高度
     const float height_Lv1_L = 0.29; // 左臂抓取高积木所到深度
     const float height_Lv1_R = -0.29; // 右臂抓取高积木所到深度
     const float height_Lv2_L = 0.33 - 0.03; // 左臂抓取低积木所到深度
     const float height_Lv2_R = -0.33 + 0.03; // 右臂抓取低积木所到深度
+
+    /// 大长方体抓取固定高度
+    const float height_bigCube_L = 0.33 - 0.03; // 右臂抓取低积木所到深度
+    const float height_bigCube_R = -0.33 + 0.03; // 右臂抓取低积木所到深度
 
     const float BigCubeT3ThreshL = 0.233; // 左臂抓取大长方体所到深度
     const float BigCubeT3ThreshR = 0.233; // 右臂抓取大长方体所到深度
@@ -152,9 +158,9 @@ private:
     const double areaThresh = 1300.0; // 积木与立方体轮廓面积区分阈值
     /// NOTE：值越小离桌面越远
     const float smallCubeThresh = 0.6; // 在机器人坐标系下, 小立方体x方向坐标阈值 FIXME
-    const float bigCubeThresh = 0.50; // 在机器人坐标系下, 大立方体x方向坐标阈值, 应小于立方体最高点x
-    const float bigBallThresh = 0.59; // 在机器人坐标系下, 大球x方向坐标阈值, 应小于球最高点x
-    const float bigCubeTask3Thresh = 0.55; // 在机器人坐标系下, 大长方体x方向坐标阈值, 越小限制越大
+    const float bigCubeThresh = 0.61; // 在机器人坐标系下, 大立方体x方向坐标阈值, 应小于立方体最高点x
+    const float bigBallThresh = 0.60; // 在机器人坐标系下, 大球x方向坐标阈值, 应小于球最高点x, NOTE 值越大分割出的掩码面积越大
+    const float bigCubeTask3Thresh = 0.63; // 在机器人坐标系下, 大长方体x方向坐标阈值, NOTE 越小限制越大
 private:
     /// GPD FIXME
 //    gpd::GraspDetectorPointNet* grasp_detector_; ///< used to run the GPD algorithm
