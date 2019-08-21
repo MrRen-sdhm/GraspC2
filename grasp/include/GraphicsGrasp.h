@@ -132,8 +132,8 @@ public:
 
 public:
     /// 工作区域划分
-    std::vector<int> LU_ = {140, 230}; // 桌面区域左上角点 (x, y)=(col, row)
-    std::vector<int> RD_ = {680, 490}; // 桌面区域右下角点 (x, y)=(col, row)
+    std::vector<int> LU_ = {140, 210}; // 桌面区域左上角点 (x, y)=(col, row)
+    std::vector<int> RD_ = {680, 460}; // 桌面区域右下角点 (x, y)=(col, row)
     const float LeftOrRightThresh = 400.0; // 左右臂分工阈值, 列数小于阈值为左臂管辖
     const float WorkAreaThreshL = 280.0; // 左侧工作区域分割阈值
     const float WorkAreaThreshR = 525.0; // 右侧工作区域分割阈值
@@ -144,8 +144,12 @@ public:
     /// 积木抓取固定高度
     const float height_Lv1_L = 0.29; // 左臂抓取高积木所到深度
     const float height_Lv1_R = -0.29; // 右臂抓取高积木所到深度
-    const float height_Lv2_L = 0.33 - 0.03; // 左臂抓取低积木所到深度
-    const float height_Lv2_R = -0.33 + 0.03; // 右臂抓取低积木所到深度
+    // 立着
+//    const float height_Lv2_L = 0.30 - 0.03; // 左臂抓取低积木所到深度
+//    const float height_Lv2_R = -0.30 + 0.03; // 右臂抓取低积木所到深度
+    // 躺着
+    const float height_Lv2_L = 0.345 - 0.03; // 左臂抓取低积木所到深度
+    const float height_Lv2_R = -0.343 + 0.03; // 右臂抓取低积木所到深度
 
     /// 大长方体抓取固定高度
     const float height_bigCube_L = 0.33 - 0.03; // 右臂抓取低积木所到深度
@@ -160,7 +164,7 @@ private:
     const float smallCubeThresh = 0.6; // 在机器人坐标系下, 小立方体x方向坐标阈值 FIXME
     const float bigCubeThresh = 0.61; // 在机器人坐标系下, 大立方体x方向坐标阈值, 应小于立方体最高点x
     const float bigBallThresh = 0.60; // 在机器人坐标系下, 大球x方向坐标阈值, 应小于球最高点x, NOTE 值越大分割出的掩码面积越大
-    const float bigCubeTask3Thresh = 0.63; // 在机器人坐标系下, 大长方体x方向坐标阈值, NOTE 越小限制越大
+    const float bigCubeTask3Thresh = 0.71; // 在机器人坐标系下, 大长方体x方向坐标阈值, NOTE 越小限制越大
 private:
     /// GPD FIXME
 //    gpd::GraspDetectorPointNet* grasp_detector_; ///< used to run the GPD algorithm
@@ -187,8 +191,11 @@ private:
                                                      1.0823131063554199e+03, 5.7383408949778186e+02, 0., 0., 1.};
     const std::vector<double> handEyeAxisAngle0517L = {1.5938399589494991e+00, 1.5111805336104953e-01, 9.7566277847803584e-01, -1.5888825205434856e-01};
     const std::vector<double> handEyeAxisAngle0517R = {1.5790132550603384e+00, 1.3340657539690240e-01, -9.7790841178594867e-01, 1.6092800812523028e-01};
-    const std::vector<double> handEyeTranslation0517L = {-8.0998572336230325e+01,-1.5657347472865831e+02, -3.2862181423815463e+02};
-    const std::vector<double> handEyeTranslation0517R = {1.2527476324483536e+02, -1.4875480479729293e+02, -1.1261563062093377e+02};
+
+    /// 左臂 想y+ 减小外参y  想z- 减外参z
+    /// 左臂 想y+ 减小外参y  想z- 减外参z
+    const std::vector<double> handEyeTranslation0517L = {-8.0998572336230325e+01,-1.2557347472865831e+02, -3.3062181423815463e+02};
+    const std::vector<double> handEyeTranslation0517R = {1.2527476324483536e+02, -1.2075480479729293e+02, -1.4061563062093377e+02};
 
     // Ca190518
     const std::vector<double> cameraMatrixVec0518 = {1.0655523574354265e+03, 0., 9.5564423948507863e+02, 0.,

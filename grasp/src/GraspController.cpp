@@ -58,7 +58,10 @@ void GraspController::graspControlThreadFunc() {
 //        if(!graspControl()) return;
 
         // 同步抓取
-        if(!graspControlDual()) return;
+//        if(!graspControlDual()) return;
+
+        // 任务三
+        if(!graspControlBigCubeT3()) return;
 
         auto endTime = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double , std::ratio<1,1> > duration_s(endTime - startTime);
@@ -385,13 +388,14 @@ bool GraspController::graspControlDual() {
 
                 targetPoseTmpL = targetPoseL; // 目标位置副本
 
-                if (targetPoseL[0] > _graphicsGrasp->lieThreshL) { // 躺着的
-                    targetPoseTmpL[0] = _graphicsGrasp->height_Lv2_L;
-                    printf("[INFO] 左臂待抓取物体为躺着的");
-                } else { // 立着的
-                    targetPoseTmpL[0] = _graphicsGrasp->height_Lv1_L;
-                    printf("[INFO] 左臂待抓取物体为立着的");
-                }
+//                if (targetPoseL[0] > _graphicsGrasp->lieThreshL) { // 躺着的
+//                    targetPoseTmpL[0] = _graphicsGrasp->height_Lv2_L;
+//                    printf("[INFO] 左臂待抓取物体为躺着的");
+//                } else { // 立着的
+//                    targetPoseTmpL[0] = _graphicsGrasp->height_Lv1_L;
+//                    printf("[INFO] 左臂待抓取物体为立着的");
+//                }
+                targetPoseTmpL[0] = _graphicsGrasp->height_Lv2_L;
 
                 // 移动到物体上方
                 targetPoseTmpL[4] = 0;
@@ -411,13 +415,14 @@ bool GraspController::graspControlDual() {
                 if (!_graphicsGrasp->getObjPose(RotatedRectR, targetPoseR, cloud, juggleOrCube, 0, 1)) continue;
                 targetPoseTmpR = targetPoseR; // 目标位置副本
 
-                if (targetPoseR[0] < _graphicsGrasp->lieThreshR) { // 躺着的
-                    targetPoseTmpR[0] = _graphicsGrasp->height_Lv2_R;
-                    printf("[INFO] 右臂待抓取物体为躺着的");
-                } else { // 立着的
-                    targetPoseTmpR[0] = _graphicsGrasp->height_Lv1_R;
-                    printf("[INFO] 右臂待抓取物体为立着的");
-                }
+//                if (targetPoseR[0] < _graphicsGrasp->lieThreshR) { // 躺着的
+//                    targetPoseTmpR[0] = _graphicsGrasp->height_Lv2_R;
+//                    printf("[INFO] 右臂待抓取物体为躺着的");
+//                } else { // 立着的
+//                    targetPoseTmpR[0] = _graphicsGrasp->height_Lv1_R;
+//                    printf("[INFO] 右臂待抓取物体为立着的");
+//                }
+                targetPoseTmpR[0] = _graphicsGrasp->height_Lv2_R;
 
                 // 移动到物体上方
                 targetPoseTmpR[4] = 0;
@@ -463,7 +468,7 @@ bool GraspController::graspControlDual() {
             targetPose[0] += 0.03; // 左臂
             targetPose[6] -= 0.03; // 右臂
 
-//            MovePose(targetPose, Vel_Lv2, Acc_Lv2, moveDevice); // FIXME
+            MovePose(targetPose, Vel_Lv2, Acc_Lv2, moveDevice); // FIXME
 
             /// 手抓闭合
             HandClose(0);
@@ -475,7 +480,7 @@ bool GraspController::graspControlDual() {
 
             mergeTargetLR(targetPoseTmpL, targetPoseTmpR, targetPose);
 
-//        MovePose(targetPose, Vel_Lv1, Acc_Lv1, moveDevice);
+            MovePose(targetPose, Vel_Lv1, Acc_Lv1, moveDevice);
 
             printf("\033[0;31m%s\033[0m\n", "================================= 放置到指定位置 ==============================");
 
@@ -744,12 +749,12 @@ bool GraspController::graspControlBigCubeT3() {
         if (saveFlag) { // 每次运行程序保存一次数据
             saveCloudAndImages();
             saveFlag = false;
-//            exit(1);
+            exit(1);
         }
 
         printf("\033[0;31m%s\033[0m\n", "=================================== 目标检测 ================================");
 
-        RotRectsAndID = _graphicsGrasp->detectBigCubeTask3(color, cloud, 120, 1);
+        RotRectsAndID = _graphicsGrasp->detectBigCubeTask3(color, cloud, 120, 0);
 
         if (RotRectsAndID.first.empty()) {
             printf("[ERROR] Did not get any rot rects for Big Cube!\n");
@@ -795,7 +800,7 @@ bool GraspController::graspControlBigCubeT3() {
                     PointR.second = Pwidth_1.y;
                 }
 
-                BigCubeAngle.push_back(RotRectsAndID.first[i].angle - 90); // 存储长边角度
+                BigCubeAngle.push_back(RotRectsAndID.first[i].angle); // 存储长边角度
 
             } else {
                 // 计算height边上的中心点
@@ -827,7 +832,7 @@ bool GraspController::graspControlBigCubeT3() {
                     PointR.second = Pheight_1.y;
                 }
 
-                BigCubeAngle.push_back(RotRectsAndID.first[i].angle); // 存储长边角度
+                BigCubeAngle.push_back(RotRectsAndID.first[i].angle - 90); // 存储长边角度
             }
 
             PointListL.push_back(PointL);
@@ -845,7 +850,7 @@ bool GraspController::graspControlBigCubeT3() {
             float x3, y3, z3; // 中心点实际位置
             if (!_graphicsGrasp->getPointLoc(PointListL[j].second, PointListL[j].first, x1, y1, z1, cloud)) continue;
             if (!_graphicsGrasp->getPointLoc(PointListR[j].second, PointListR[j].first, x2, y2, z2, cloud)) continue;
-            if (!_graphicsGrasp->getPointLoc(BigCubeCenter[j].x, BigCubeCenter[j].y, x3, y3, z3, cloud)) continue;
+            if (!_graphicsGrasp->getPointLoc(BigCubeCenter[j].y, BigCubeCenter[j].x, x3, y3, z3, cloud)) continue;
             pointL.x = x1;
             pointL.y = y1;
             pointL.z = z1;
@@ -873,8 +878,8 @@ bool GraspController::graspControlBigCubeT3() {
         std::vector<double> b2oXYZRPYL = _graphicsGrasp->calcRealCoor(coorRawL, 0); // 计算基坐标到物体转换关系
         std::vector<double> b2oXYZRPYR = _graphicsGrasp->calcRealCoor(coorRawR, 1); // 计算基坐标到物体转换关系
 
-        std::vector<double> b2oXYZRPYL_C = _graphicsGrasp->calcRealCoor(coorRawL, 0); // 中心点在左臂下坐标
-        std::vector<double> b2oXYZRPYR_C = _graphicsGrasp->calcRealCoor(coorRawR, 1); // 中心点在右臂下坐标
+        std::vector<double> b2oXYZRPYL_C = _graphicsGrasp->calcRealCoor(coorRawC, 0); // 中心点在左臂下坐标
+        std::vector<double> b2oXYZRPYR_C = _graphicsGrasp->calcRealCoor(coorRawC, 1); // 中心点在右臂下坐标
 
         // 修改姿态
         b2oXYZRPYL[3] = 1.54;
@@ -903,6 +908,8 @@ bool GraspController::graspControlBigCubeT3() {
         MoveJoints(JuggleIniteJoints, Vel_Lv3, Acc_Lv3, 2);
 
         printf("\033[0;31m%s\033[0m\n", "================================= 移动到正上方 ===============================");
+
+        if (PickedBigCubeCnt > 1) exit(2); // FIXME 过多的退出
 
         std::vector<double> targetPoseTmpL = b2oXYZRPYL;
         std::vector<double> targetPoseTmpR = b2oXYZRPYR;
@@ -941,10 +948,9 @@ bool GraspController::graspControlBigCubeT3() {
         HandClose(1);
 
         /// 修改姿态, 手臂垂直抬起 抬起高度与已抓取木块数成正比 FIXME 此时抬起高度应高于长方体高度
-        targetPoseTmpR[0] += 0.05 * PickedBigCubeCnt; // 右臂
-        targetPoseTmpL[0] -= 0.05 * PickedBigCubeCnt; // 左臂
-
-        mergeTargetLR(targetPoseTmpL, targetPoseTmpR, targetPose);
+        targetPose = getRobotPose(2); // 获取双臂当前位置
+        targetPose[0] -= 0.05 * PickedBigCubeCnt; // 右臂
+        targetPose[6] += 0.05 * PickedBigCubeCnt; // 左臂
 
         MovePose(targetPose, Vel_Lv1, Acc_Lv1, 2);
 
@@ -957,20 +963,25 @@ bool GraspController::graspControlBigCubeT3() {
         double CurrY_InL = b2oXYZRPYL_C[1];
         double CurrZ_InL = b2oXYZRPYL_C[2];
 
+        printf ("CurrZ_InL %f CurrY_InL %f\n", CurrZ_InL, CurrY_InL);
+
         // 左臂坐标系下放置位置
+        // 中间
         double AimZ = -0.22;
-        double AimY = -0.25;
+        double AimY = -0.29;
 
         // 左臂将木块移动到指定位置需要移动的距离
         double DistanceY = AimY - CurrY_InL;
         double DistanceZ = AimZ - CurrZ_InL;
+
+        printf ("DistanceZ %f DistanceY %f\n", DistanceZ, DistanceY);
 
         /// 在当前位置基础上移动一定距离, 左右臂移动距离相同
         // 左臂
         targetPose[1] = targetPose[1] + DistanceY;
         targetPose[2] = targetPose[2] + DistanceZ;
         // 右臂
-        targetPose[7] = targetPose[7] - DistanceY;
+        targetPose[7] = targetPose[7] + DistanceY;
         targetPose[8] = targetPose[8] - DistanceZ;
 
         MovePose(targetPose, Vel_Lv1, Acc_Lv1, 2);
@@ -979,8 +990,8 @@ bool GraspController::graspControlBigCubeT3() {
         HandOpen(0);
         HandOpen(1);
 
-        /// 回初始位置
-        MoveJoints(JuggleIniteJoints, Vel_Lv3, Acc_Lv3, 2);
+//        /// 回初始位置
+//        MoveJoints(JuggleIniteJoints, Vel_Lv3, Acc_Lv3, 2);
 
         PickedBigCubeCnt++;
 
@@ -1409,7 +1420,7 @@ void GraspController::HandOpen(int armId) {
         _DeviceStatus._Acc = {1000, 1000};
         _DeviceStatus._ID = actionArmId;
         _cassemble2Driver->GraspB(_DeviceStatus, _ErrorInfo);
-//        sleep(1);
+        sleep(1);
     }
 
     _cassemble2Driver->GraspB(_DeviceStatus, _ErrorInfo);
@@ -1428,10 +1439,6 @@ void GraspController::HandClose(int armId) {
         _cassemble2Driver->GraspB(_DeviceStatus, _ErrorInfo);
         sleep(1);
     }
-
-//    while (true) {
-//        if (_DeviceStatus._Status.at(0) == 1) break;
-//    }
 
     _cassemble2Driver->GraspB(_DeviceStatus, _ErrorInfo);
 }

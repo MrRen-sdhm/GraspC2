@@ -244,8 +244,8 @@ int main(int argc, char** argv)
     cv::Mat color, depth;
 
     // 球
-//    color = cv::imread("../../../grasp/data/images/27_color_0820.jpg");
-//    depth = cv::imread("../../../grasp/data/images/27_depth_0820.png", -1);
+//    color = cv::imread("../../../grasp/data/images/old/27_color_0820.jpg");
+//    depth = cv::imread("../../../grasp/data/images/old/27_depth_0820.png", -1);
 
     // 大长方体
     color = cv::imread("../../../grasp/data/images/old/20_color_0818.jpg");

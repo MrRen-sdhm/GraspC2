@@ -113,6 +113,10 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectB
     cv::Mat mask = cv::Mat::zeros(img_hsv.rows, img_hsv.cols, CV_8U); // 掩码
     cv::Mat maskHSV = cv::Mat::zeros(img_hsv.rows, img_hsv.cols, CV_8U); // 掩码
 
+    std::vector<double> LocX;
+    std::vector<int> LocRow; // HSV阈值分割后点所在行
+    std::vector<int> LocCol; // HSV阈值分割后点所在列
+
     /// 获取目标区域掩码
     for(int r = 0; r < img_hsv.rows; ++r) {
         auto *itM = mask.ptr<uint8_t>(r);
@@ -130,10 +134,13 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectB
                         if (getPointLoc(r, c, center_x, center_y, center_z, cloud)) {
                             std::vector<float> coorRaw = {center_x, center_y, center_z};
                             std::vector<double> b2oXYZRPY = calcRealCoor(coorRaw, leftOrRight); // 计算基坐标到物体转换关系
+                            LocX.push_back(b2oXYZRPY[0]);
+                            LocRow.push_back(r);
+                            LocCol.push_back(c);
 
                             if(show == 1 || show == 2) cout << "当前点在机器人坐标系下的坐标: " << b2oXYZRPY << endl;
                             if (b2oXYZRPY[0] < threshLoc) { // 长方体积木立着<0.62 小立方体<0.6
-                                if (show) cout << "阈值范围内的x坐标: " << b2oXYZRPY[0] << " ";
+                                if (show == 1 || show == 2) cout << "阈值范围内的x坐标: " << b2oXYZRPY[0] << " ";
                                 *itM = 255; // 高的物体为目标物体
                             }
                         }
@@ -159,6 +166,22 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectB
                 }
             }
         }
+    }
+
+    /// 处理阈值分割后的坐标 找最高点, 即x最小
+    double MinX = 0;
+    int RawRow, RawCol;
+    if (!LocX.empty()) { // 左侧有物体
+        auto min_X = std::min_element(LocX.begin(), LocX.end());
+        MinX = *min_X;
+
+        auto distance = std::distance(LocX.begin(), min_X);
+        RawRow = LocRow[distance]; // 在原始图像中的行
+        RawCol = LocCol[distance]; // 在原始图像中的列
+        std::cout << "[INFO] 大型物体检测 最高的点是 " << *min_X << " at row:"
+                  << RawRow << " at col: " << RawCol << std::endl;
+    } else {
+        printf("LocX is empty!\n");
     }
 
     if(show == 1 | show == 2) cv::imshow("mask", mask);
@@ -510,20 +533,20 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectB
     }
 
     /// 处理阈值分割后的坐标 找最高点, 即x最小
-//    double MinX = 0;
-//    int RawRow, RawCol;
-//    if (!LocX.empty()) { // 左侧有物体
-//        auto min_X = std::min_element(LocX.begin(), LocX.end());
-//        MinX = *min_X;
-//
-//        auto distance = std::distance(LocX.begin(), min_X);
-//        RawRow = LocRow[distance]; // 在原始图像中的行
-//        RawCol = LocCol[distance]; // 在原始图像中的列
-//        std::cout << "[INFO] LocX Min element is " << *min_X << " at row:"
-//                  << RawRow << " at col: " << RawCol << std::endl;
-//    } else {
-//        printf("LocX is empty!\n");
-//    }
+    double MinX = 0;
+    int RawRow, RawCol;
+    if (!LocX.empty()) { // 左侧有物体
+        auto min_X = std::min_element(LocX.begin(), LocX.end());
+        MinX = *min_X;
+
+        auto distance = std::distance(LocX.begin(), min_X);
+        RawRow = LocRow[distance]; // 在原始图像中的行
+        RawCol = LocCol[distance]; // 在原始图像中的列
+        std::cout << "[INFO] 大立方体检测 LocX Min element is " << *min_X << " at row:"
+                  << RawRow << " at col: " << RawCol << std::endl;
+    } else {
+        printf("LocX is empty!\n");
+    }
 
     for (size_t j = 0; j < LocX.size(); j++) {
 //        if (LocX[j] < MinX + 0.3) // 截取下方1cm范围内的点
