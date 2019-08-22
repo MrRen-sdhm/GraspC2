@@ -3,6 +3,17 @@
 //
 #include "include/GraphicsGrasp.h"
 
+template <typename T>
+vector<size_t> sort_indexes_e(vector<T> &v)
+{
+    vector<size_t> idx(v.size());
+    iota(idx.begin(), idx.end(), 0);
+    sort(idx.begin(), idx.end(),
+    [&v](size_t i1, size_t i2) {return v[i1] < v[i2]; });
+    return idx;
+}
+
+
 void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat color, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud) {
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID, RotRectsAndIDTop;
     std::vector<double> Pose;
@@ -11,9 +22,9 @@ void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat
 
     if (juggleOrCube == 0) {
         /// Yolo积木检测
-//        RotRectsAndID = _graphicsGrasp->detectGraspYolo(color, 200, 2);
-//        RotRectsAndID = _graphicsGrasp->detectGraspYoloPro(color, cloud, 120, 1);
-        RotRectsAndID = _graphicsGrasp->detectGraspYoloProT2(color, cloud, 120, 1);
+//        RotRectsAndID = _graphicsGrasp->detectGraspYolo(color, 200, 1); // 利用HSV阈值分割顶面
+//        RotRectsAndID = _graphicsGrasp->detectGraspYoloPro(color, cloud, 120, 1); // 利用深度分割获取顶面
+        RotRectsAndID = _graphicsGrasp->detectGraspYoloProT2(color, cloud, 120, 1); // 不检测三棱柱
     } else if (juggleOrCube == 1) {
         /// 大型物体检测
 //        RotRectsAndID = _graphicsGrasp->detectBigObj(color, cloud, 2, 200, 0.7, 2); // 检测大正方体, 高阈值 NOTE:检测大球和大正方体使用的阈值不一样
@@ -31,10 +42,32 @@ void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat
 //            RotRectsAndID.second.push_back(BigCubeRect.second);
 //        }
 
-# if 0 /// 大长方体检测
+# if 1 /// 大长方体检测
         RotRectsAndID = _graphicsGrasp->detectBigCubeTask3(color, cloud, 120, 1);
 
+//        vector<int> vec = {5,31,9,11,8,21,9,7,4};
+//        vector<size_t> idx;
+//        idx = sort_indexes_e(vec);//注意vec中的内容不变，不是返回排序后的向量
+//
+//        //sort_indexes(idx,vec);//注意vec中的内容不变，不是返回排序后的向量
+//
+//        vector<int> vecs{};
+//
+//        for (int i = 0; i < vec.size(); i++)
+//        {
+//            vecs.push_back(vec[idx[i]]);
+//        }
+//
+//        cout << vecs << endl;
+//        cout << idx << endl;
+//
+//        exit(-10);
+
+        /// 计算中心点及抓取点像素位置
         std::vector<std::pair<float, float>> PointListL, PointListR; // 存储所有点对
+        std::vector<float> BigCubeAngle;
+        std::vector<cv::Point2f> BigCubeCenter;
+        std::vector<float> BigCubeCentery;
 
         for (size_t i = 0; i < RotRectsAndID.first.size(); i++) {
             std::pair<float, float> PointL, PointR;
@@ -71,6 +104,8 @@ void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat
                     PointR.second = Pwidth_1.y;
                 }
 
+                BigCubeAngle.push_back(RotRectsAndID.first[i].angle); // 存储短边角度
+
             } else {
                 // 计算height边上的中心点
                 cv::Point2f Pheight1;
@@ -100,53 +135,43 @@ void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat
                     PointR.first = Pheight_1.x;
                     PointR.second = Pheight_1.y;
                 }
+
+                BigCubeAngle.push_back(RotRectsAndID.first[i].angle - 90); // 存储短边角度
             }
 
             PointListL.push_back(PointL);
             PointListR.push_back(PointR);
+            BigCubeCenter.push_back(RotRectsAndID.first[i].center);
+            BigCubeCentery.push_back(RotRectsAndID.first[i].center.y);
         }
 
-        std::vector<std::pair<cv::Point3f, cv::Point3f>> pointListLR;
-        for (size_t j = 0; j < PointListL.size(); j++) {
-            std::pair<cv::Point3f, cv::Point3f> pointLR;
-            cv::Point3f pointL, pointR;
-            float x1, y1, z1; // 实际位置1
-            float x2, y2, z2; // 实际位置2
-            if (!_graphicsGrasp->getPointLoc((int)PointListL[j].second, (int)PointListL[j].first, x1, y1, z1, cloud)) continue;
-            if (!_graphicsGrasp->getPointLoc((int)PointListR[j].second, (int)PointListR[j].first, x2, y2, z2, cloud)) continue;
-            pointL.x = x1;
-            pointL.y = y1;
-            pointL.z = z1;
-            pointR.x = x2;
-            pointR.y = y2;
-            pointR.z = z2;
-            pointLR.first = pointL;
-            pointLR.second = pointR;
-            pointListLR.push_back(pointLR);
-            printf("[INFO] 左侧抓取点实际坐标: [%f,%f,%f]\n", x1, y1, z1);
-            printf("[INFO] 右侧抓取点实际坐标: [%f,%f,%f]\n", x2, y2, z2);
+        /// 查找距离机器人最近的大木块, 即中心点行数最大
+        auto max_Centery = std::max_element(BigCubeCentery.begin(), BigCubeCentery.end());
+        auto distance = std::distance(BigCubeCentery.begin(), max_Centery);
+//        positionRawL = LIndices[distanceL]; // 在RotRectsAndID中的位置
+        std::cout << "[INFO] BigCubeCenter Max element is " << *max_Centery << " at position "
+                  << distance << " in RotRectsAndID" << std::endl;
+
+
+        // 从小到大排序
+        vector<size_t> idx;
+        idx = sort_indexes_e(BigCubeCentery);//注意vec中的内容不变，不是返回排序后的向量
+
+        vector<float> vecs{};
+
+        for (size_t i = 0; i < BigCubeCentery.size(); i++)
+        {
+            vecs.push_back(BigCubeCentery[idx[i]]);
         }
 
-        std::vector<float> coorRawL = {pointListLR[0].first.x, pointListLR[0].first.y, pointListLR[0].first.z};
-        std::vector<float> coorRawR = {pointListLR[0].second.x, pointListLR[0].second.y, pointListLR[0].second.z};
-        std::vector<double> b2oXYZRPYL = _graphicsGrasp->calcRealCoor(coorRawL, 0); // 计算基坐标到物体转换关系
-        std::vector<double> b2oXYZRPYR = _graphicsGrasp->calcRealCoor(coorRawR, 0); // 计算基坐标到物体转换关系
+        cout << BigCubeCentery << endl;
+        cout << vecs << endl;
+        cout << idx << endl;
 
-        // 舍弃姿态
-        b2oXYZRPYL[3] = 0;
-        b2oXYZRPYL[4] = 0;
-        b2oXYZRPYL[5] = 0;
-        b2oXYZRPYR[3] = 0;
-        b2oXYZRPYR[4] = 0;
-        b2oXYZRPYR[5] = 0;
-
-        printf("[INFO] 左侧抓取点机器人坐标: [%f,%f,%f,%f,%f,%f]\n", b2oXYZRPYL[0], b2oXYZRPYL[1],
-               b2oXYZRPYL[2], b2oXYZRPYL[3], b2oXYZRPYL[4], b2oXYZRPYL[5]);
-        printf("[INFO] 右侧抓取点机器人坐标: [%f,%f,%f,%f,%f,%f]\n", b2oXYZRPYR[0], b2oXYZRPYR[1],
-               b2oXYZRPYR[2], b2oXYZRPYR[3], b2oXYZRPYR[4], b2oXYZRPYR[5]);
+        exit(-10);
 #endif
 
-#if 1 /// 小立方体检测
+#if 0 /// 小立方体检测
         RotRectsAndID = _graphicsGrasp->detectSmallCubeTask2(color, cloud, 120, 1);
 #endif
     }
@@ -205,6 +230,7 @@ void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat
             line(resized, P[j], P[(j + 1) % 4], cv::Scalar(0, 255, 0), 2);
         }
         cv::circle(resized, RotRectsAndID.first[i].center, 1, cv::Scalar(0, 0, 255), 2);
+//        cv::circle(resized, RotRectsAndID.first[i].center, 30, cv::Scalar(0, 0, 255), 2);
 
         cout << "[INFO] RotRects ID: " << RotRectsAndID.second[i] << endl;
 
@@ -212,7 +238,7 @@ void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat
         cv::waitKey(0);
     }
 
-    cv::imwrite("/home/hustac/result.jpg", resized);
+    cv::imwrite("/home/hustac/result.png", resized);
 //    cv::waitKey(0);
 
     /// 计算大球和大立方体的高度
@@ -259,12 +285,26 @@ int main(int argc, char** argv)
 //    depth = cv::imread("../../../grasp/data/images/47_depth_0821.png", -1);
 
     // 小立方体
-    color = cv::imread("../../../grasp/data/images/49_color_0821.jpg");
-    depth = cv::imread("../../../grasp/data/images/49_depth_0821.png", -1);
+//    color = cv::imread("../../../grasp/data/images/49_color_0821.jpg");
+//    depth = cv::imread("../../../grasp/data/images/49_depth_0821.png", -1);
+    // 堆叠
+//    color = cv::imread("../../../grasp/data/images/50_color_0821.jpg");
+//    depth = cv::imread("../../../grasp/data/images/50_depth_0821.png", -1);
+
+    // 大立方体
+//    color = cv::imread("../../../grasp/data/images/13_color_0822.jpg");
+//    depth = cv::imread("../../../grasp/data/images/13_depth_0822.png", -1);
 
     // 大长方体
 //    color = cv::imread("../../../grasp/data/images/old/20_color_0818.jpg");
 //    depth = cv::imread("../../../grasp/data/images/old/20_depth_0818.png", -1);
+
+    color = cv::imread("../../../grasp/data/images/35_color_0822.jpg");
+    depth = cv::imread("../../../grasp/data/images/35_depth_0822.png", -1);
+
+    // 积木
+//    color = cv::imread("../../../grasp/data/images/old/04_color_0817.jpg");
+//    depth = cv::imread("../../../grasp/data/images/old/04_depth_0817.png", -1);
 
 //    color = cv::imread("/home/hustac/test1.jpg");
 //    depth = cv::imread("/home/hustac/test1.png", -1);

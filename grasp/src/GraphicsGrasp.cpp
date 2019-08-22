@@ -103,11 +103,12 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectG
     std::vector<float> confidences;
     std::vector<cv::Rect> boxes;
 
-    cv::Rect rect(cv::Point(WorkAreaThreshL, LU_[1]), cv::Size(WorkAreaThreshR - WorkAreaThreshL,
-            (RD_[1] - WorkAreaThreshSmallCube) - LU_[1]));
+//    cv::Rect rect(cv::Point(WorkAreaThreshL, LU_[1]), cv::Size(WorkAreaThreshR - WorkAreaThreshL,
+//            (RD_[1] - WorkAreaThreshSmallCube) - LU_[1]));
+    cv::Rect rect (cv::Point(WorkAreaThreshL, LU_[1]), cv::Size(WorkAreaThreshR - WorkAreaThreshL, (RD_[1] - LU_[1])));
     yoloDetector->detectObj(resized, classIds, confidences, boxes, rect, thresh, show);
 
-    RotatedRectsAndID = detectJuggles(resized, cloud, classIds, confidences, boxes, rect, thresh, show);
+    RotatedRectsAndID = detectJuggles(resized, cloud, classIds, confidences, boxes, rect, thresh, show, true); /// 忽略三棱柱
 
     printf("[INFO] Detected %zu rotated rects.\n", RotatedRectsAndID.first.size());
 
@@ -364,7 +365,7 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::getRotR
 
 std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectJuggles(
         cv::Mat &image, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, std::vector<int> &classIds, std::vector<float> &confidences,
-        std::vector<cv::Rect> &boxes, const cv::Rect& rect, int threshColor, int show) {
+        std::vector<cv::Rect> &boxes, const cv::Rect& rect, int threshColor, int show, bool ignoreTri) {
 
     std::vector<cv::RotatedRect> RotatedRects;
     std::vector<int> RectsID;
@@ -477,7 +478,7 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectJ
         std::vector<cv::RotatedRect> rotRects;
         if (calRotatedRect(img, maskTop, startBox, rotRects, 0, show)) {
 
-            if (classIds[i] != 0) { // NOTE 略过三棱柱
+            if (!ignoreTri) { // 不略过三棱柱
                 RotatedRects.push_back(rotRects[0]); // 存储外接矩形, 每个积木仅有一个外接矩形
                 RectsID.push_back(classIds[i]); // 存储外接矩形对应的物体类别
 
@@ -486,6 +487,14 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectJ
                               rotRects[0].angle << " size: " << rotRects[0].size << std::endl;
             } else {
                 printf("[INFO] Ignore the triangular\n");
+                if (classIds[i] != 0) { /// 略过三棱柱
+                    RotatedRects.push_back(rotRects[0]); // 存储外接矩形, 每个积木仅有一个外接矩形
+                    RectsID.push_back(classIds[i]); // 存储外接矩形对应的物体类别
+
+                    if (show == 1 || show == 2)
+                        std::cout << "minAreaRectOut: center:" << rotRects[0].center << " angle: " <<
+                                  rotRects[0].angle << " size: " << rotRects[0].size << std::endl;
+                }
             }
 
         }
@@ -694,7 +703,9 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectS
             else if (holeArea < 250 && holeArea > 100) smallCubeID = 0; // 三棱柱孔
 
             /// 分类完成 存储
-            if (rotRects[ii].center.y < (float)(RD_[1] - WorkAreaThreshSmallCube)) { /// 仅存储工作区域内的
+            if (rotRects[ii].center.x > WorkAreaThreshL && rotRects[ii].center.x < WorkAreaThreshR
+                && rotRects[ii].center.y > LU_[1] && rotRects[ii].center.y < RD_[1]) { /// 仅存储工作区域内的
+
                 RotatedRects.push_back(rotRects[ii]); // 存储外接矩形, 每个积木仅有一个外接矩形
                 RectsID.push_back(smallCubeID); // 存储外接矩形对应的物体类别
             }
@@ -1352,19 +1363,15 @@ void GraphicsGrasp::showWorkArea(cv::Mat &image) {
     cv::Point AreaLeftRightLU(LU_[0], LU_[1]); // 桌面区域左上角点 (x, y)=(col, row)
     cv::Point AreaLeftRightRD(LeftOrRightThresh, RD_[1]); // 桌面区域右下角点 (x, y)=(col, row)
 
-    // 小立方体放置区域
-    cv::Point AreaSmallCubeLU(LU_[0], RD_[1] - WorkAreaThreshSmallCube); // 桌面区域左上角点 (x, y)=(col, row)
-    cv::Point AreaSmallCubeRD(RD_[0], RD_[1]); // 桌面区域右下角点 (x, y)=(col, row)
-
     rectangle(frame, LU, RD, cv::Scalar(255, 178, 50), 1);
     rectangle(frame, AreaLeftLU, AreaLeftRD, cv::Scalar(255, 178, 50), 1);
     rectangle(frame, AreaMiddleLU, AreaMiddleRD, cv::Scalar(255, 178, 50), 1);
     rectangle(frame, AreaRightLU, AreaRightRD, cv::Scalar(255, 178, 50), 1);
     rectangle(frame, AreaLeftRightLU, AreaLeftRightRD, cv::Scalar(255, 178, 50), 1);
-    rectangle(frame, AreaSmallCubeLU, AreaSmallCubeRD, cv::Scalar(0, 255, 0), 1);
 
+    // 任务2积木检测区域
     rectangle(frame, cv::Rect (cv::Point(WorkAreaThreshL, LU_[1]), cv::Size(WorkAreaThreshR - WorkAreaThreshL,
-            (RD_[1] - WorkAreaThreshSmallCube ) - LU_[1])), cv::Scalar(0, 255, 255), 1);
+            (RD_[1] - LU_[1]))), cv::Scalar(0, 255, 0), 1);
 
     cv::Rect rect(cv::Point(LU_[0], LU_[1]), cv::Size(RD_[0]-LU_[0], RD_[1]-LU_[1]));
     rectangle(frame, rect, cv::Scalar(0, 0, 255), 1);

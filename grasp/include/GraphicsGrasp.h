@@ -80,7 +80,7 @@ public:
 
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> detectJuggles(cv::Mat &image, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud,
                                                std::vector<int> &classIds, std::vector<float> &confidences,
-                                               std::vector<cv::Rect> &boxes, const cv::Rect& rect, int thresh, int show);
+                                               std::vector<cv::Rect> &boxes, const cv::Rect& rect, int thresh, int show, bool ignoreTri = false);
 
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> detectSmallCubeTask2(
             cv::Mat &image, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, int threshColor, int show);
@@ -192,7 +192,6 @@ public:
     const float LeftOrRightThresh = 400.0; // 左右臂分工阈值, 列数小于阈值为左臂管辖
     const float WorkAreaThreshL = 280.0; // 左侧工作区域分割阈值
     const float WorkAreaThreshR = 525.0; // 右侧工作区域分割阈值
-    const float WorkAreaThreshSmallCube = 50; // 小立方体工作区域分割阈值, 在RD_[1] 基础上减此值
 
     const float lieThreshL = 0.61; // 积木躺着或立着x方向阈值, 左 // 大于此值则为躺着的
     const float lieThreshR = -0.54; // 积木躺着或立着x方向阈值, 右 // 小于此值即为立着的
@@ -212,11 +211,16 @@ public:
     const float height_Lv2_R = -0.31 + 0.03; // 右臂抓取低积木所到深度
 
     /// 大长方体抓取固定高度
-    const float height_bigCube_L = 0.34 - 0.03; // 右臂抓取低积木所到深度
-    const float height_bigCube_R = -0.34 + 0.03; // 右臂抓取低积木所到深度
+    const float height_bigCube_L = 0.34 - 0.03;
+    const float height_bigCube_R = -0.36 + 0.03;
 
-    const float BigCubeT3ThreshL = 0.233; // 左臂抓取大长方体所到深度
-    const float BigCubeT3ThreshR = 0.233; // 右臂抓取大长方体所到深度
+    /// 小立方体抓取固定高度
+    const float height_smallCube_L = 0.35 - 0.03;
+    const float height_smallCube_R = -0.35 + 0.03;
+
+    /// 大长方体抓取固定高度
+    const float BigCubeT3ThreshL = 0.233;
+    const float BigCubeT3ThreshR = 0.233;
 
 private:
     const double areaThresh = 1300.0; // 积木与立方体轮廓面积区分阈值
@@ -224,7 +228,7 @@ private:
     const float smallCubeThresh = 0.67; // 在机器人坐标系下, 小立方体x方向坐标阈值  小立方体最高点 0.6475
     const float bigCubeThresh = 0.63; // 在机器人坐标系下, 大立方体x方向坐标阈值, 应小于立方体最高点x 立方体最高点 0.62
     const float bigBallThresh = 0.59; // 在机器人坐标系下, 大球x方向坐标阈值, 应小于球最高点x, NOTE 值越大分割出的掩码面积越大 球最高点 0.562
-    const float bigCubeTask3Thresh = 0.71; // 在机器人坐标系下, 大长方体x方向坐标阈值, NOTE 越小限制越大
+    const float bigCubeTask3Thresh = 0.69; // 在机器人坐标系下, 大长方体x方向坐标阈值, NOTE 越小限制越大
 };
 
 #endif //MAGICCUBE_GRAPHICSCUBE_H

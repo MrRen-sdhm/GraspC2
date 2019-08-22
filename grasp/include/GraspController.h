@@ -28,6 +28,16 @@
 #include <pcl/io/pcd_io.h>
 #include <pcl/visualization/cloud_viewer.h>
 
+template <typename T>
+vector<size_t> sort_indexes_e(vector<T> &v)
+{
+    vector<size_t> idx(v.size());
+    iota(idx.begin(), idx.end(), 0);
+    sort(idx.begin(), idx.end(),
+         [&v](size_t i1, size_t i2) {return v[i1] < v[i2]; });
+    return idx;
+}
+
 using namespace cobotsys;
 
 class GraphicsGrasp;
@@ -44,7 +54,7 @@ public:
      * @param configFilePath 文件路径
      * @return true: 设置成功 false: 设置失败
      */
-    bool setup(const std::string& configFilePath);
+    bool setup(int taskNum, const std::string &configFilePath);
 
     /**
      * 启动程序
@@ -57,6 +67,8 @@ public:
     void stop();
 
 private:
+
+    int taskNum_;
 
     //结束所有的工作线程
     void destoryTaskThreads();
@@ -93,16 +105,16 @@ private:
     bool graspControlTask4();
 
     // 移动指定位姿 实际使用的是MoveJ 输入笛卡尔 转换为关节角 armId: 0-左臂 1-右臂 2-双臂
-    void Move(const std::vector<double>& targetPose, double vel, double acc, int armId);
+    void Move(const std::vector<double> &targetPose, double vel, double acc, int armId);
 
     // 移动指定位姿 实际使用的是MoveL 输入笛卡尔 armId: 0-左臂 1-右臂 2-双臂
-    void MovePose(const std::vector<double>& targetPose, double vel, double acc, int armId);
+    void MovePose(const std::vector<double> &targetPose, double vel, double acc, int armId);
 
     // 移动指定关节角 armId: 0-左臂 1-右臂 2-双臂
-    void MoveJoints(const std::vector<double>& targetJoints, double vel, double acc, int armId);
+    void MoveJoints(const std::vector<double> &targetJoints, double vel, double acc, int armId);
 
     // 移动指定路径 targetPose[xyzrpy] 单位[m/rad] armId[0为左臂 1为右臂]
-    void MovePath(const std::vector<double>& targetPose, double vel, double acc, int armId);
+    void MovePath(const std::vector<double> &targetPose, double vel, double acc, int armId);
 
     // 在当前位置基础上调整Joint6角度
     void MoveJoint6(double targetJoint6L, double targetJoint6R, int armId);
@@ -121,11 +133,10 @@ private:
 
     void saveCloudAndImages();
 
-    static std::string getCurrentTimeStr()
-    {
+    static std::string getCurrentTimeStr() {
         time_t t = time(nullptr);
         char ch[64] = {0};
-        strftime(ch, sizeof(ch)-1, "%m%d", localtime(&t));     //年-月-日 时-分-秒
+        strftime(ch, sizeof(ch) - 1, "%m%d", localtime(&t));     //年-月-日 时-分-秒
         return ch;
     }
 
@@ -194,7 +205,7 @@ private:
         visualizer->setShowFPS(true);
         visualizer->setCameraPosition(0, 0, 0, 0, -1, 0);
 
-        while(!visualizer->wasStopped()) {
+        while (!visualizer->wasStopped()) {
             visualizer->spinOnce(10);
         }
         visualizer->close();
@@ -225,121 +236,148 @@ private:
 
     /// 垂直抓取相关位置
     // 起始位置
-//    const std::vector<double> IniteJointsOld = {1.62, 0.360, -1.92, -0.64, 0.026, 0.00,
-//                                                -1.62, -0.360, 1.92, 0.64, -0.026, 0.00};
 
-    const std::vector<double> IniteJointsOld = {D2R(92.819), D2R(20.626), D2R(-110.007), D2R(-36.669), D2R(1.488), D2R(-0.001),
-                                                D2R(-92.819), D2R(-20.626), D2R(110.007), D2R(36.669), D2R(-1.488), D2R(0.001)};
+    const std::vector<double> IniteJointsOld = {D2R(92.819), D2R(20.626), D2R(-110.007), D2R(-36.669), D2R(1.488),
+                                                D2R(-0.001),
+                                                D2R(-92.819), D2R(-20.626), D2R(110.007), D2R(36.669), D2R(-1.488),
+                                                D2R(0.001)};
 
-    const std::vector<double> IniteJoints = {D2R(91.238), D2R(64.396), D2R(-37.523), D2R(-15.631), D2R(-1.713), D2R(5.382),
-                                             D2R(-91.238), D2R(-64.396), D2R(37.523), D2R(15.631), D2R(1.713), D2R(-5.382)};
+    const std::vector<double> IniteJoints = {D2R(91.238), D2R(64.396), D2R(-37.523), D2R(-15.631), D2R(-1.713),
+                                             D2R(5.382),
+                                             D2R(-91.238), D2R(-64.396), D2R(37.523), D2R(15.631), D2R(1.713),
+                                             D2R(-5.382)};
 
-    const std::vector<double> IniteJointsL = {D2R(91.238), D2R(64.396), D2R(-37.523), D2R(-15.631), D2R(-1.713), D2R(5.382)};
+    const std::vector<double> IniteJointsL = {D2R(91.238), D2R(64.396), D2R(-37.523), D2R(-15.631), D2R(-1.713),
+                                              D2R(5.382)};
 
-    const std::vector<double> IniteJointsR = {D2R(-91.238), D2R(-64.396), D2R(37.523), D2R(15.631), D2R(1.713), D2R(-5.382)};
+    const std::vector<double> IniteJointsR = {D2R(-91.238), D2R(-64.396), D2R(37.523), D2R(15.631), D2R(1.713),
+                                              D2R(-5.382)};
 
 
     // 积木抓取初始位置
 //    const std::vector<double> JuggleIniteJoints = {D2R(89.304), D2R(56.234), D2R(-110.007), D2R(-56.669), D2R(1.488), D2R(-20.0),
 //                                                   D2R(-89.304), D2R(-56.234), D2R(110.007), D2R(56.669), D2R(-1.488), D2R(20.0)};
 
-    const std::vector<double> JuggleIniteJoints = {D2R(89.948), D2R(65.239), D2R(-77.522), D2R(33.371), D2R(2.248), D2R(-171.430),
-                                                   D2R(-89.948), D2R(-65.239), D2R(77.522), D2R(-33.371), D2R(-2.248), D2R(171.430)};
+    const std::vector<double> JuggleIniteJoints = {D2R(89.948), D2R(65.239), D2R(-77.522), D2R(33.371), D2R(2.248),
+                                                   D2R(-171.430),
+                                                   D2R(-89.948), D2R(-65.239), D2R(77.522), D2R(-33.371), D2R(-2.248),
+                                                   D2R(171.430)};
 
     // 球体抓取初始位置
     const std::vector<double> BallIniteJoints = {1.62, 0.360, -1.92, -0.64, D2R(-40), 0.00,
-                                                -1.62, -0.360, 1.92, 0.64, D2R(40), D2R(174)}; // FIXME
+                                                 -1.62, -0.360, 1.92, 0.64, D2R(40), D2R(174)}; // FIXME
 
     // 立方体抓取初始位置
-    const std::vector<double> CubeIniteJoints = {D2R(91.238), D2R(64.396), D2R(-37.523), D2R(-15.631), D2R(-40), D2R(5.382),
-                                                 D2R(-91.238), D2R(-64.396), D2R(37.523), D2R(15.631), D2R(40), D2R(-5.382)}; // FIXME
+    const std::vector<double> CubeIniteJoints = {D2R(91.238), D2R(64.396), D2R(-37.523), D2R(-15.631), D2R(-40),
+                                                 D2R(5.382),
+                                                 D2R(-91.238), D2R(-64.396), D2R(37.523), D2R(15.631), D2R(40),
+                                                 D2R(-5.382)}; // FIXME
 
     // 中间位置
     const std::vector<double> MiddlePose = {1.62, 0.920, -1.92, -0.64, 0.026, 0.00,
                                             -1.62, 0.920, 1.92, 0.64, -0.026, 0.00};
 
     /// 积木放置位置
-    const std::vector<double> EndJoints = {D2R(97.402), D2R(93.306), D2R(-69.662), D2R(19.228), D2R(9.333), D2R(-169.197),
+    const std::vector<double> EndJoints = {D2R(97.402), D2R(93.306), D2R(-69.662), D2R(19.228), D2R(9.333),
+                                           D2R(-169.197),
                                            D2R(-92.52), D2R(-104.37), D2R(12.86), D2R(-40.35), D2R(-4.63), D2R(157.63)};
     // 左侧放置位置1
-    const std::vector<double> PlaceJointsL1 = {D2R(92.273), D2R(34.669), D2R(-121.205), D2R(19.228), D2R(2.178), D2R(-97.334)};
+    const std::vector<double> PlaceJointsL1 = {D2R(92.273), D2R(34.669), D2R(-121.205), D2R(19.228), D2R(2.178),
+                                               D2R(-97.334)};
 
     // 左侧放置位置2
-    const std::vector<double> PlaceJointsL2 = {D2R(91.706), D2R(44.431), D2R(-98.776), D2R(36.571), D2R(1.611), D2R(-97.276)};
+    const std::vector<double> PlaceJointsL2 = {D2R(91.706), D2R(44.431), D2R(-98.776), D2R(36.571), D2R(1.611),
+                                               D2R(-97.276)};
 
     // 左侧放置位置3
-    const std::vector<double> PlaceJointsL3 = {D2R(91.459), D2R(52.591), D2R(-81.059), D2R(46.086), D2R(1.364), D2R(-97.236)};
+    const std::vector<double> PlaceJointsL3 = {D2R(91.459), D2R(52.591), D2R(-81.059), D2R(46.086), D2R(1.364),
+                                               D2R(-97.236)};
 
     // 右侧放置位置1
-    const std::vector<double> PlaceJointsR1 = {D2R(-92.273), D2R(-34.699), D2R(121.205), D2R(-19.228), D2R(-2.178), D2R(97.334)};
+    const std::vector<double> PlaceJointsR1 = {D2R(-92.273), D2R(-34.699), D2R(121.205), D2R(-19.228), D2R(-2.178),
+                                               D2R(97.334)};
 
     // 右侧放置位置2
-    const std::vector<double> PlaceJointsR2 = {D2R(-91.706), D2R(-44.431), D2R(98.776), D2R(-36.571), D2R(-1.611), D2R(97.276)};
+    const std::vector<double> PlaceJointsR2 = {D2R(-91.706), D2R(-44.431), D2R(98.776), D2R(-36.571), D2R(-1.611),
+                                               D2R(97.276)};
 
     // 右侧放置位置3
-    const std::vector<double> PlaceJointsR3 = {D2R(-91.459), D2R(-52.591), D2R(81.059), D2R(-46.086), D2R(-1.364), D2R(97.236)};
+    const std::vector<double> PlaceJointsR3 = {D2R(-91.459), D2R(-52.591), D2R(81.059), D2R(-46.086), D2R(-1.364),
+                                               D2R(97.236)};
 
     /// 任务2小立方体放置位置
-    // 放置位置1-左臂 FIXME
-    const std::vector<double> PlaceJointsL1_T2 = {D2R(102.863), D2R(23.343), D2R(-102.095), D2R(54.561), D2R(12.863), D2R(0.179)};
+    // 放置位置1-左臂
+    const std::vector<double> PlaceJointsL1_T2 = {D2R(102.863), D2R(23.343), D2R(-102.095), D2R(54.561), D2R(12.863),
+                                                  D2R(0.179)};
 
-    // 放置位置2-左臂 FIXME
-    const std::vector<double> PlaceJointsL2_T2 = {D2R(98.871), D2R(48.680), D2R(-59.529), D2R(71.662), D2R(8.872), D2R(0.126)};
+    // 放置位置2-左臂
+    const std::vector<double> PlaceJointsL2_T2 = {D2R(98.871), D2R(48.680), D2R(-59.529), D2R(71.662), D2R(8.872),
+                                                  D2R(0.126)};
 
-    // 放置位置3-左臂 FIXME
-    const std::vector<double> PlaceJointsL3_T2 = {D2R(102.862), D2R(46.818), D2R(-105.216), D2R(27.888), D2R(12.863), D2R(0.074)};
+    // 放置位置3-左臂
+    const std::vector<double> PlaceJointsL3_T2 = {D2R(102.862), D2R(46.818), D2R(-105.216), D2R(27.888), D2R(12.863),
+                                                  D2R(0.074)};
 
-    // 放置位置4-左臂 FIXME
-    const std::vector<double> PlaceJointsL4_T2 = {D2R(98.871), D2R(64.909), D2R(-62.920), D2R(52.076), D2R(8.872), D2R(0.092)};
+    // 放置位置4-左臂
+    const std::vector<double> PlaceJointsL4_T2 = {D2R(98.871), D2R(64.909), D2R(-62.920), D2R(52.076), D2R(8.872),
+                                                  D2R(0.092)};
 
-    // 放置位置1-右臂 FIXME
-    const std::vector<double> PlaceJointsR1_T2 = {D2R(-102.863), D2R(-23.343), D2R(102.095), D2R(-54.561), D2R(-12.863), D2R(-0.179)};
+    // 放置位置1-右臂
+    const std::vector<double> PlaceJointsR1_T2 = {D2R(-102.863), D2R(-23.343), D2R(102.095), D2R(-54.561), D2R(-12.863),
+                                                  D2R(-0.179)};
 
-    // 放置位置2-右臂  FIXME
-    const std::vector<double> PlaceJointsR2_T2 = {D2R(-98.871), D2R(-48.680), D2R(59.529), D2R(-71.662), D2R(-8.872), D2R(-0.126)};
+    // 放置位置2-右臂
+    const std::vector<double> PlaceJointsR2_T2 = {D2R(-98.871), D2R(-48.680), D2R(59.529), D2R(-71.662), D2R(-8.872),
+                                                  D2R(-0.126)};
 
-    // 放置位置3-右臂  FIXME
-    const std::vector<double> PlaceJointsR3_T2 = {D2R(-102.862), D2R(-46.818), D2R(105.216), D2R(-27.888), D2R(-12.863), D2R(-0.074)};
+    // 放置位置3-右臂
+    const std::vector<double> PlaceJointsR3_T2 = {D2R(-102.862), D2R(-46.818), D2R(105.216), D2R(-27.888), D2R(-12.863),
+                                                  D2R(-0.074)};
 
-    // 放置位置4-右臂  FIXME
-    const std::vector<double> PlaceJointsR4_T2 = {D2R(-98.871), D2R(-64.909), D2R(62.920), D2R(-52.076), D2R(-8.872), D2R(-0.092)};
+    // 放置位置4-右臂
+    const std::vector<double> PlaceJointsR4_T2 = {D2R(-98.871), D2R(-64.909), D2R(62.920), D2R(-52.076), D2R(-8.872),
+                                                  D2R(-0.092)};
 
     /// 笛卡尔
 
-    // 放置位置1-左臂 FIXME
+    // 放置位置1-左臂
     const std::vector<double> PlacePoseL1_T2 = {0.280, -0.280, 0.150, D2R(90), D2R(0), D2R(90)};
 
-    // 放置位置2-左臂 FIXME
+    // 放置位置2-左臂
     const std::vector<double> PlacePoseL2_T2 = {0.280, -0.420, 0.150, D2R(90), D2R(0), D2R(90)};
 
-    // 放置位置3-左臂 FIXME
+    // 放置位置3-左臂
     const std::vector<double> PlacePoseL3_T2 = {0.280, -0.280, 0.01, D2R(90), D2R(0), D2R(90)};
 
-    // 放置位置4-左臂 FIXME
+    // 放置位置4-左臂
     const std::vector<double> PlacePoseL4_T2 = {0.280, -0.420, 0.01, D2R(90), D2R(0), D2R(90)};
 
-    // 放置位置1-右臂 FIXME
+    // 放置位置1-右臂
     const std::vector<double> PlacePoseR1_T2 = {-0.280, 0.280, 0.150, D2R(90), D2R(0), D2R(-90)};
 
-    // 放置位置2-右臂  FIXME
+    // 放置位置2-右臂
     const std::vector<double> PlacePoseR2_T2 = {-0.280, 0.420, 0.150, D2R(90), D2R(0), D2R(-90)};
 
-    // 放置位置3-右臂  FIXME
+    // 放置位置3-右臂
     const std::vector<double> PlacePoseR3_T2 = {-0.280, 0.280, 0.01, D2R(90), D2R(0), D2R(-90)};
 
-    // 放置位置4-右臂  FIXME
+    // 放置位置4-右臂
     const std::vector<double> PlacePoseR4_T2 = {-0.280, 0.420, 0.01, D2R(90), D2R(0), D2R(-90)};
 
     /// 任务2装配位置
     // 装配位置-左臂 FIXME
-    const std::vector<double> TogetherJointsL = {D2R(127.69), D2R(77.56), D2R(-27.28), D2R(-14.84), D2R(-89.91), D2R(-142.22)};
+    const std::vector<double> TogetherJointsL = {D2R(127.69), D2R(77.56), D2R(-27.28), D2R(-14.84), D2R(-89.91),
+                                                 D2R(-142.22)};
     // 装配位置-右臂 FIXME 右臂垂直
-    const std::vector<double> TogetherJointsRN = {D2R(-92.71), D2R(-96.69), D2R(41.42), D2R(-61.79), D2R(-4.41), D2R(-71.21)};
+    const std::vector<double> TogetherJointsRN = {D2R(-92.71), D2R(-96.69), D2R(41.42), D2R(-61.79), D2R(-4.41),
+                                                  D2R(-71.21)};
 
     // 装配位置-左臂 FIXME 左臂垂直
-    const std::vector<double> TogetherJointsLN = {D2R(92.61), D2R(100.37), D2R(-32.42), D2R(67.50), D2R(4.32), D2R(70.79)};
+    const std::vector<double> TogetherJointsLN = {D2R(92.61), D2R(100.37), D2R(-32.42), D2R(67.50), D2R(4.32),
+                                                  D2R(70.79)};
     // 装配位置-右臂 FIXME
-    const std::vector<double> TogetherJointsR = {D2R(-128.59), D2R(-82.95), D2R(16.25), D2R(9.20), D2R(89.90), D2R(141.31)};
+    const std::vector<double> TogetherJointsR = {D2R(-128.59), D2R(-82.95), D2R(16.25), D2R(9.20), D2R(89.90),
+                                                 D2R(141.31)};
 
     /// 任务2装配初始置
     // 装配位置-左臂 FIXME
@@ -347,20 +385,13 @@ private:
     // 装配位置-右臂 FIXME
     const std::vector<double> TogetherInitPoseR = {-0.407, -0.399, 0.1, D2R(-180), D2R(-0.0), D2R(-180)};
 
+    /// 任务2立方体交换位置
     // 装配位置-左臂 FIXME
-    const std::vector<double> ExchangeInitJointsL = {D2R(121.604), D2R(59.789), D2R(-52.394), D2R(-22.182), D2R(-89.909), D2R(-148.307)};
+    const std::vector<double> ExchangeInitJointsL = {D2R(121.604), D2R(59.789), D2R(-52.394), D2R(-22.182),
+                                                     D2R(-89.909), D2R(-148.307)};
     // 装配位置-右臂 FIXME
-    const std::vector<double> ExchangeInitJointsR = {D2R(-123.516), D2R(-56.880), D2R(58.283), D2R(25.079), D2R(89.992), D2R(146.484)};
+    const std::vector<double> ExchangeInitJointsR = {D2R(-123.516), D2R(-56.880), D2R(58.283), D2R(25.079), D2R(89.992),
+                                                     D2R(146.484)};
 
-    /// 水平抓取相关位置
-    // 平着
-    const std::vector<double> Pose1 = {0.10, -0.50, -0.10, -3.14, 0.00, 0.00,
-                                       0.341, -0.354, 0.030, -1.54, -0.95, 1.54};
-
-    // 平着初始位置
-    const std::vector<double> Pose2 = {0.215, -0.369, 0.428, -2.009, -1.215, -1.09,
-                                       0.341, -0.354, 0.030, -1.54, -0.95, 1.54};
 };
-
-
 #endif //GRASP_CONTROLLER_H

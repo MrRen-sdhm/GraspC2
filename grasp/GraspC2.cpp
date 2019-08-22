@@ -22,6 +22,20 @@ using namespace cobotsys;
 
 int main(int argc, char** argv)
 {
+    int taskNum = 1;
+
+    if (atoi(argv[1]) == 1) {
+        taskNum = 1;
+    } else if (atoi(argv[1]) == 2) {
+        taskNum = 2;
+    } else if (atoi(argv[1]) == 3) {
+        taskNum = 3;
+    } else if (atoi(argv[1]) == 4) {
+        taskNum = 4;
+    } else {
+        printf("\033[0;33m%s\033[0m\n", "[WARN] Did not give property task num, defualt task 1 !");
+    }
+
     QApplication a(argc, argv);
     cobotsys::init_library(argc, argv);
     cobotsys::FileFinder::addSearchPath("/opt/cobotsys/data");
@@ -36,7 +50,7 @@ int main(int argc, char** argv)
         std::shared_ptr<GraspController> graspController = std::make_shared<GraspController>(); // 抓取控制器
 
         std::string configFile = "../../../grasp/grasp_config.json";
-        if(!graspController->setup(configFile)) {
+        if(!graspController->setup(taskNum, configFile)) {
             //初始化失败直接退出
             std::cout << "初始化失败！" << std::endl;
             return 1;
