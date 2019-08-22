@@ -476,11 +476,18 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectJ
         cv::Rect startBox(cv::Point(0, 0), cv::Size(0, 0)); /// 此处起点为960*540图片的0,0点
         std::vector<cv::RotatedRect> rotRects;
         if (calRotatedRect(img, maskTop, startBox, rotRects, 0, show)) {
-            RotatedRects.push_back(rotRects[0]); // 存储外接矩形, 每个积木仅有一个外接矩形
-            RectsID.push_back(classIds[i]); // 存储外接矩形对应的物体类别
 
-            if(show == 1 || show == 2) std::cout << "minAreaRectOut: center:" << rotRects[0].center << " angle: " <<
-                                                 rotRects[0].angle << " size: " << rotRects[0].size << std::endl;
+            if (classIds[i] != 0) { // NOTE 略过三棱柱
+                RotatedRects.push_back(rotRects[0]); // 存储外接矩形, 每个积木仅有一个外接矩形
+                RectsID.push_back(classIds[i]); // 存储外接矩形对应的物体类别
+
+                if (show == 1 || show == 2)
+                    std::cout << "minAreaRectOut: center:" << rotRects[0].center << " angle: " <<
+                              rotRects[0].angle << " size: " << rotRects[0].size << std::endl;
+            } else {
+                printf("[INFO] Ignore the triangular\n");
+            }
+
         }
 
         if(show == 1 || show == 2) yoloDetector->drawPred(classIds[i], confidences[i], box.x, box.y, box.x + box.width,

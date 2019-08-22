@@ -204,12 +204,16 @@ public:
 //    const float height_Lv2_L = 0.30 - 0.03; // 左臂抓取低积木所到深度
 //    const float height_Lv2_R = -0.30 + 0.03; // 右臂抓取低积木所到深度
     // 躺着
-    const float height_Lv2_L = 0.345 - 0.03; // 左臂抓取低积木所到深度
-    const float height_Lv2_R = -0.343 + 0.03; // 右臂抓取低积木所到深度
+//    const float height_Lv2_L = 0.345 - 0.03; // 左臂抓取低积木所到深度
+//    const float height_Lv2_R = -0.343 + 0.03; // 右臂抓取低积木所到深度
+
+    // 躺着 大爪子
+    const float height_Lv2_L = 0.30 - 0.03; // 左臂抓取低积木所到深度
+    const float height_Lv2_R = -0.31 + 0.03; // 右臂抓取低积木所到深度
 
     /// 大长方体抓取固定高度
-    const float height_bigCube_L = 0.33 - 0.03; // 右臂抓取低积木所到深度
-    const float height_bigCube_R = -0.33 + 0.03; // 右臂抓取低积木所到深度
+    const float height_bigCube_L = 0.34 - 0.03; // 右臂抓取低积木所到深度
+    const float height_bigCube_R = -0.34 + 0.03; // 右臂抓取低积木所到深度
 
     const float BigCubeT3ThreshL = 0.233; // 左臂抓取大长方体所到深度
     const float BigCubeT3ThreshR = 0.233; // 右臂抓取大长方体所到深度
