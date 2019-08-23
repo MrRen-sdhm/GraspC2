@@ -58,7 +58,8 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectG
     std::vector<float> confidences;
     std::vector<cv::Rect> boxes;
 
-    cv::Rect rect(cv::Point(LU_[0], LU_[1]), cv::Size(RD_[0]-LU_[0], RD_[1]-LU_[1]));
+//    cv::Rect rect(cv::Point(LU_[0], LU_[1]), cv::Size(RD_[0]-LU_[0], RD_[1]-LU_[1]));
+    cv::Rect rect (cv::Point(WorkAreaThreshLL, LU_[1]), cv::Size(WorkAreaThreshRR - WorkAreaThreshLL, (RD_[1] - LU_[1])));
     yoloDetector->detectObj(resized, classIds, confidences, boxes, rect, thresh, show);
 
     RotatedRectsAndID = getRotRectsAndID(resized, classIds, confidences, boxes, rect, thresh, show);
@@ -105,7 +106,7 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectG
 
 //    cv::Rect rect(cv::Point(WorkAreaThreshL, LU_[1]), cv::Size(WorkAreaThreshR - WorkAreaThreshL,
 //            (RD_[1] - WorkAreaThreshSmallCube) - LU_[1]));
-    cv::Rect rect (cv::Point(WorkAreaThreshL, LU_[1]), cv::Size(WorkAreaThreshR - WorkAreaThreshL, (RD_[1] - LU_[1])));
+    cv::Rect rect (cv::Point(WorkAreaThreshLL, LU_[1]), cv::Size(WorkAreaThreshRR - WorkAreaThreshLL, (RD_[1] - LU_[1])));
     yoloDetector->detectObj(resized, classIds, confidences, boxes, rect, thresh, show);
 
     RotatedRectsAndID = detectJuggles(resized, cloud, classIds, confidences, boxes, rect, thresh, show, true); /// 忽略三棱柱
@@ -1370,7 +1371,7 @@ void GraphicsGrasp::showWorkArea(cv::Mat &image) {
     rectangle(frame, AreaLeftRightLU, AreaLeftRightRD, cv::Scalar(255, 178, 50), 1);
 
     // 任务2积木检测区域
-    rectangle(frame, cv::Rect (cv::Point(WorkAreaThreshL, LU_[1]), cv::Size(WorkAreaThreshR - WorkAreaThreshL,
+    rectangle(frame, cv::Rect (cv::Point(WorkAreaThreshLL, LU_[1]), cv::Size(WorkAreaThreshRR - WorkAreaThreshLL,
             (RD_[1] - LU_[1]))), cv::Scalar(0, 255, 0), 1);
 
     cv::Rect rect(cv::Point(LU_[0], LU_[1]), cv::Size(RD_[0]-LU_[0], RD_[1]-LU_[1]));

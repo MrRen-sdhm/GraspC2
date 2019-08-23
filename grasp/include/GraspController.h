@@ -215,15 +215,21 @@ private:
     /// 抓取相关参数
     const double Vel_Lv1 = 0.5;
     const double Acc_Lv1 = 0.05;
-    const double Vel_Lv2 = 3.5;
-    const double Acc_Lv2 = 3.5;
+    const double Vel_Lv2 = 1.5;
+    const double Acc_Lv2 = 0.05;
 
     const double Vel_Lv2_ = 1.0;
     const double Acc_Lv2_ = 1.0;
 
     // 用于移动关节角
-    const double Vel_Lv3 = 2.0;
-    const double Acc_Lv3 = 2.0;
+    const double Vel_Lv3 = 1.0;
+    const double Acc_Lv3 = 1.0;
+
+    // 用于转动末端姿态
+    const double Vel_Lv4 = 4.0;
+    const double Acc_Lv4 = 4.0;
+
+    bool BigCubePicked = false;
 
     bool BallPicked = false;
     int PickedBigCubeCnt = 0; // 已抓取积木数
@@ -282,28 +288,23 @@ private:
                                            D2R(-169.197),
                                            D2R(-92.52), D2R(-104.37), D2R(12.86), D2R(-40.35), D2R(-4.63), D2R(157.63)};
     // 左侧放置位置1
-    const std::vector<double> PlaceJointsL1 = {D2R(92.273), D2R(34.669), D2R(-121.205), D2R(19.228), D2R(2.178),
-                                               D2R(-97.334)};
+    const std::vector<double> PlaceJointsL1 = {D2R(92.273), D2R(34.669), D2R(-121.205), D2R(19.228), D2R(2.178), D2R(-97.334)};
 
     // 左侧放置位置2
-    const std::vector<double> PlaceJointsL2 = {D2R(91.706), D2R(44.431), D2R(-98.776), D2R(36.571), D2R(1.611),
-                                               D2R(-97.276)};
+    const std::vector<double> PlaceJointsL2 = {D2R(91.706), D2R(44.431), D2R(-98.776), D2R(36.571), D2R(1.611), D2R(-97.276)};
 
     // 左侧放置位置3
-    const std::vector<double> PlaceJointsL3 = {D2R(91.459), D2R(52.591), D2R(-81.059), D2R(46.086), D2R(1.364),
-                                               D2R(-97.236)};
+    const std::vector<double> PlaceJointsL3 = {D2R(91.459), D2R(52.591), D2R(-81.059), D2R(46.086), D2R(1.364), D2R(-97.236)};
 
     // 右侧放置位置1
-    const std::vector<double> PlaceJointsR1 = {D2R(-92.273), D2R(-34.699), D2R(121.205), D2R(-19.228), D2R(-2.178),
-                                               D2R(97.334)};
+    const std::vector<double> PlaceJointsR1 = {D2R(-92.273), D2R(-34.699), D2R(121.205), D2R(-19.228), D2R(-2.178), D2R(97.334)};
 
     // 右侧放置位置2
-    const std::vector<double> PlaceJointsR2 = {D2R(-91.706), D2R(-44.431), D2R(98.776), D2R(-36.571), D2R(-1.611),
-                                               D2R(97.276)};
+    const std::vector<double> PlaceJointsR2 = {D2R(-91.706), D2R(-44.431), D2R(98.776), D2R(-36.571), D2R(-1.611), D2R(97.276)};
 
     // 右侧放置位置3
-    const std::vector<double> PlaceJointsR3 = {D2R(-91.459), D2R(-52.591), D2R(81.059), D2R(-46.086), D2R(-1.364),
-                                               D2R(97.236)};
+    const std::vector<double> PlaceJointsR3 = {D2R(-91.459), D2R(-52.591), D2R(81.059), D2R(-46.086), D2R(-1.364), D2R(97.236)};
+
 
     /// 任务2小立方体放置位置
     // 放置位置1-左臂

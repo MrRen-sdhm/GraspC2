@@ -339,7 +339,9 @@ bool GraspController::graspControlDual() {
         if (!BallPicked) BigBallFlag = _graphicsGrasp->detectBigBall(color, cloud, BigBallRect, 0);
 
         if (!BigBallFlag) { // 无球再检测立方体
-            BigCubeFlag = _graphicsGrasp->detectBigCube(color, cloud, BigCubeRect, 0);
+            if (!BigCubePicked) {
+                BigCubeFlag = _graphicsGrasp->detectBigCube(color, cloud, BigCubeRect, 0);
+            }
         }
 
         if (juggleOrCube == 0 && !BigBallFlag) {
@@ -388,6 +390,8 @@ bool GraspController::graspControlDual() {
 
             printf("\033[0;31m%s\033[0m\n", "================================= 移动到正上方 ===============================");
 
+            bool lieFlagR = true, lieFlagL = true;
+
             /// 获取目标位置(左臂)
             if (AimObjIndicesLR[0] != -1) { // 左侧有物体
                 cv::RotatedRect RotatedRectL = RotRectsAndID.first[AimObjIndicesLR[0]];
@@ -397,14 +401,17 @@ bool GraspController::graspControlDual() {
 
                 targetPoseTmpL = targetPoseL; // 目标位置副本
 
-//                if (targetPoseL[0] > _graphicsGrasp->lieThreshL) { // 躺着的
-//                    targetPoseTmpL[0] = _graphicsGrasp->height_Lv2_L;
-//                    printf("[INFO] 左臂待抓取物体为躺着的");
-//                } else { // 立着的
-//                    targetPoseTmpL[0] = _graphicsGrasp->height_Lv1_L;
-//                    printf("[INFO] 左臂待抓取物体为立着的");
-//                }
-                targetPoseTmpL[0] = _graphicsGrasp->height_Lv2_L;
+                /// 高低判别
+                if (targetPoseL[0] > _graphicsGrasp->lieThreshL) { // 躺着的
+                    targetPoseTmpL[0] = _graphicsGrasp->height_Lv2_L;
+                    printf("\033[0;31m%s\033[0m\n", "[INFO] 左臂待抓取物体为躺着的");
+                    lieFlagL = true;
+                } else { // 立着的
+                    targetPoseTmpL[0] = _graphicsGrasp->height_Lv1_L;
+                    printf("\033[0;31m%s\033[0m\n", "[INFO] 左臂待抓取物体为立着的");
+                    lieFlagL = false;
+                }
+//                targetPoseTmpL[0] = _graphicsGrasp->height_Lv2_L;
 
                 // 移动到物体上方
                 targetPoseTmpL[4] = 0;
@@ -424,14 +431,17 @@ bool GraspController::graspControlDual() {
                 if (!_graphicsGrasp->getObjPose(RotatedRectR, targetPoseR, cloud, juggleOrCube, 0, 1)) continue;
                 targetPoseTmpR = targetPoseR; // 目标位置副本
 
-//                if (targetPoseR[0] < _graphicsGrasp->lieThreshR) { // 躺着的
-//                    targetPoseTmpR[0] = _graphicsGrasp->height_Lv2_R;
-//                    printf("[INFO] 右臂待抓取物体为躺着的");
-//                } else { // 立着的
-//                    targetPoseTmpR[0] = _graphicsGrasp->height_Lv1_R;
-//                    printf("[INFO] 右臂待抓取物体为立着的");
-//                }
-                targetPoseTmpR[0] = _graphicsGrasp->height_Lv2_R;
+                /// 高低判别
+                if (targetPoseR[0] < _graphicsGrasp->lieThreshR) { // 躺着的
+                    targetPoseTmpR[0] = _graphicsGrasp->height_Lv2_R;
+                    printf("\033[0;31m%s\033[0m\n", "[INFO] 右臂待抓取物体为躺着的");
+                    lieFlagR = true;
+                } else { // 立着的
+                    targetPoseTmpR[0] = _graphicsGrasp->height_Lv1_R;
+                    printf("\033[0;31m%s\033[0m\n", "[INFO] 右臂待抓取物体为立着的");
+                    lieFlagR = false;
+                }
+//                targetPoseTmpR[0] = _graphicsGrasp->height_Lv2_R;
 
                 // 移动到物体上方
                 targetPoseTmpR[4] = 0;
@@ -460,7 +470,7 @@ bool GraspController::graspControlDual() {
 
             cout << "[INFO] targetPose: " << targetPose << endl;
 
-            MovePose(targetPose, Vel_Lv1, Acc_Lv1, moveDevice);
+            MovePose(targetPose, Vel_Lv2, Acc_Lv2, moveDevice);
 
             printf("\033[0;31m%s\033[0m\n", "================================= 调整末端姿态 ===============================");
 
@@ -468,28 +478,31 @@ bool GraspController::graspControlDual() {
             if (HaveObjL) targetPose[5] += D2R(180 + R2D(targetPoseL[4])); // 获取原始末端关节角, 加补角
             if (HaveObjR) targetPose[11] += targetPoseR[4]; // 获取原始末端关节角
 
-            MoveJoints(targetPose, Vel_Lv3, Acc_Lv3, 2);
+            MoveJoints(targetPose, Vel_Lv4, Acc_Lv4, 2);
 
             printf("\033[0;31m%s\033[0m\n", "================================= 手抓下降并抓取 ==============================");
 
             /// 修改姿态, 手臂垂直下降
             targetPose = getRobotPose(2); // 获取双臂当前位置
-            targetPose[0] += 0.03; // 左臂
-            targetPose[6] -= 0.03; // 右臂
+            if (lieFlagL) targetPose[0] += 0.03; // 左臂
+            else targetPose[0] += 0.09; // 左臂
 
-            MovePose(targetPose, Vel_Lv2, Acc_Lv2, moveDevice); // FIXME
+            if (lieFlagR) targetPose[6] -= 0.03; // 右臂
+            else targetPose[6] -= 0.09; // 右臂
+
+            MovePose(targetPose, Vel_Lv2_, Acc_Lv2_, moveDevice); // FIXME
 
             /// 手抓闭合
             HandClose(0);
             HandClose(1);
 
             /// 修改姿态, 手臂垂直抬起
-            targetPoseTmpR[0] += 0.03; // 右臂
-            targetPoseTmpL[0] -= 0.03; // 左臂
+            targetPoseTmpR[0] += 0.01; // 右臂
+            targetPoseTmpL[0] -= 0.01; // 左臂
 
             mergeTargetLR(targetPoseTmpL, targetPoseTmpR, targetPose);
 
-            MovePose(targetPose, Vel_Lv1, Acc_Lv1, moveDevice);
+            MovePose(targetPose, Vel_Lv2_, Acc_Lv2_, moveDevice);
 
             printf("\033[0;31m%s\033[0m\n", "================================= 放置到指定位置 ==============================");
 
@@ -561,7 +574,7 @@ bool GraspController::graspControlDual() {
 
                 mergeTargetLR(targetPoseTmpL, targetPoseTmpR, targetPose);
 
-                MovePose(targetPose, Vel_Lv1, Acc_Lv1, 2);
+                MovePose(targetPose, Vel_Lv2, Acc_Lv2, 2);
 
                 printf("\033[0;31m%s\033[0m\n\n\n", "================================== 抬起球体 =================================");
 
@@ -597,11 +610,11 @@ bool GraspController::graspControlDual() {
                 targetPoseTmpR = getRobotPose(1); // 获取当前位置
                 const double BallPlaceR_z = 0.23; // 右臂z方向绝对放置位置, 末端坐标系, 不是TCP
                 double distance = BallPlaceR_z - targetPoseTmpR[2];
-                targetPoseTmpR[2] = BallPlaceR_z; // 绝对运动 FIXME
+                targetPoseTmpR[2] = BallPlaceR_z;
 
                 /// 左臂平移
                 targetPoseTmpL = getRobotPose(0); // 获取当前位置
-                targetPoseTmpL[2] -= distance; // 相对运, 移动距离为右臂所走距离 FIXME
+                targetPoseTmpL[2] -= distance; // 相对运, 移动距离为右臂所走距离
 
                 mergeTargetLR(targetPoseTmpL, targetPoseTmpR, targetPose);
                 MovePose(targetPose, Vel_Lv1, Acc_Lv1, 2);
@@ -617,7 +630,7 @@ bool GraspController::graspControlDual() {
                 targetPoseTmpR[0] -= 0.1;
 
                 mergeTargetLR(targetPoseTmpL, targetPoseTmpR, targetPose);
-                MovePose(targetPose, Vel_Lv1, Acc_Lv1, 2);
+                MovePose(targetPose, Vel_Lv1, Acc_Lv1, 1);
 
                 printf("\033[0;31m%s\033[0m\n\n\n", "================================== 抬起手臂 =================================");
 
@@ -646,7 +659,7 @@ bool GraspController::graspControlDual() {
 //                MovePose(targetPose, Vel_Lv1, Acc_Lv1, 2);
 
                 printf("\033[0;31m%s\033[0m\n\n\n", "================================= 球体抓取成功 ================================");
-                BallPicked = true; // 球体抓取完成
+                BigCubePicked = true; // 球体抓取完成
 
                 printf("\033[0;31m%s\033[0m\n\n\n", "================================== 回初始位置 ================================");
                 MoveInit();
@@ -699,7 +712,7 @@ bool GraspController::graspControlDual() {
 
                 mergeTargetLR(targetPoseTmpL, targetPoseTmpR, targetPose);
 
-                MovePose(targetPose, Vel_Lv1, Acc_Lv1, 2);
+                MovePose(targetPose, Vel_Lv2, Acc_Lv2, 2);
 
                 printf("\033[0;31m%s\033[0m\n\n\n", "================================== 抓住立方体 ===============================");
 
@@ -746,19 +759,19 @@ bool GraspController::graspControlDual() {
                 printf("\033[0;31m%s\033[0m\n\n\n", "================================== 平移立方体 =================================");
 
                 /// 左臂平移
-                targetPoseTmpR = getRobotPose(1); // 获取当前位置
+                targetPoseTmpL = getRobotPose(0); // 获取当前位置
                 const double BallCubePlaceL_z = 0.23; // 左臂z方向绝对放置位置, 末端坐标系, 不是TCP
                 double distance = BallCubePlaceL_z - targetPoseTmpL[2];
-                targetPoseTmpL[2] = BallCubePlaceL_z; // 绝对运动 FIXME
+                targetPoseTmpL[2] = BallCubePlaceL_z;
 
                 /// 右臂平移
-                targetPoseTmpR = getRobotPose(0); // 获取当前位置
-                targetPoseTmpR[2] -= distance; // 相对运, 移动距离为右臂所走距离 FIXME
+                targetPoseTmpR = getRobotPose(1); // 获取当前位置
+                targetPoseTmpR[2] -= distance; // 相对运, 移动距离为右臂所走距离
 
                 mergeTargetLR(targetPoseTmpL, targetPoseTmpR, targetPose);
                 MovePose(targetPose, Vel_Lv1, Acc_Lv1, 2);
 
-                printf("\033[0;31m%s\033[0m\n\n\n", "================================== 放下球体 =================================");
+                printf("\033[0;31m%s\033[0m\n\n\n", "================================== 放下立方体 =================================");
 
                 /// 左臂抬起
                 targetPoseTmpL = getRobotPose(0); // 获取当前位置
@@ -812,6 +825,7 @@ bool GraspController::graspControlDual() {
 
                 mergeTargetLR(targetPoseTmpL, targetPoseTmpR, targetPose);
 
+                BigCubeFlag = true;
                 MoveInit();
             }
         }
@@ -870,7 +884,7 @@ bool GraspController::graspControlTask2() {
         bool SmallCubeFlag = false;
 
         /// 小立方体检测
-        if (PickedSmallCubeCnt < 1) { // FIXME 小立方体总数
+        if (PickedSmallCubeCnt < 4) { // FIXME 小立方体总数！！！！！！！！！！！！！！！！！！！！！！！！！！！
             RotRectsAndID = _graphicsGrasp->detectSmallCubeTask2(color, cloud, 120, 0);
             if (RotRectsAndID.first.empty()) {
                 printf("[ERROR] Did not get any rot rects!\n");
@@ -880,7 +894,7 @@ bool GraspController::graspControlTask2() {
 
         /// Yolo积木检测
         if (!SmallCubeFlag) {
-            RotRectsAndID = _graphicsGrasp->detectGraspYoloPro(color, cloud, 120, 0); // FIXME 需在小立方体放置区域外检测
+            RotRectsAndID = _graphicsGrasp->detectGraspYoloPro(color, cloud, 120, 0);
             if (RotRectsAndID.first.empty()) {
                 printf("[ERROR] Did not get any rot rects!\n");
                 continue;
@@ -889,7 +903,6 @@ bool GraspController::graspControlTask2() {
 
         printf("\033[0;31m%s\033[0m\n", "=================================== 回初始位置 ===============================");
         MoveJoints(IniteJoints, Vel_Lv3, Acc_Lv3, 2);
-//        MoveJoints(IniteJointsOld, Vel_Lv3, Acc_Lv3, 2);
 
         printf("\033[0;31m%s\033[0m\n", "================================= 生成移动任务 ===============================");
 
@@ -979,19 +992,20 @@ bool GraspController::graspControlTask2() {
                     if (PlacedCubeIDR[id] == LeftObjID) { // 右侧找到对应小立方体
                         printf("\033[0;32m%s\033[0m\n", "[INFO] 左臂有待抓取物, 右侧找到对应小立方体");
                         moveDevice = 0; // 左臂抓取积木
-                        /// 左臂抓取积木
+                        // NOTE 左臂抓取积木
                         printf("\033[0;32m%s\033[0m\n", "[INFO] 左臂先抓取积木");
+                        MoveJoints(JuggleIniteJoints, Vel_Lv4, Acc_Lv4, 0);
                         // 移动到固定高度
-                        if (HaveObjL) targetPoseTmpL[0] = _graphicsGrasp->height_smallCube_L;
+                        if (HaveObjL) targetPoseTmpL[0] = _graphicsGrasp->height_smallCube_L; // FIXME
                         if (HaveObjR) targetPoseTmpR[0] = _graphicsGrasp->height_smallCube_R;
                         mergeTargetLR(targetPoseTmpL, targetPoseTmpR, targetPose);
-                        MovePose(targetPose, Vel_Lv1, Acc_Lv1, moveDevice);
+                        MovePose(targetPose, Vel_Lv2, Acc_Lv2, moveDevice);
 
                         // 调整末端姿态
                         targetPose = getRobotJoints(2); // 获取当前关节角
                         if (HaveObjL) targetPose[5] += D2R(180 + R2D(targetPoseL[4])); // 获取原始末端关节角, 加补角
                         if (HaveObjR) targetPose[11] += targetPoseR[4]; // 获取原始末端关节角
-                        MoveJoints(targetPose, Vel_Lv3, Acc_Lv3, 2);
+                        MoveJoints(targetPose, Vel_Lv4, Acc_Lv4, 2);
 
                         // 左臂下降
                         targetPose = getRobotPose(2); // 获取双臂当前位置
@@ -1034,6 +1048,10 @@ bool GraspController::graspControlTask2() {
                         targetPose[8] -= 0.01; // 右臂
                         MovePose(targetPose, Vel_Lv2, Acc_Lv2, 0);
 
+                        HandOpen(0);
+
+                        MoveJoints(JuggleIniteJoints, Vel_Lv2_, Vel_Lv2_, 0);
+
                         printf("\033[0;32m%s\033[0m\n", "[INFO] 装配成功, 右臂放置装配体");
                         // 右臂放置装配体
                         targetPose = getRobotPose(2); // 获取双臂当前位置
@@ -1052,19 +1070,20 @@ bool GraspController::graspControlTask2() {
                     if (PlacedCubeIDL[id] == RightObjID) { // 左侧找到对应小立方体
                         printf("\033[0;32m%s\033[0m\n", "[INFO] 右臂有积木待抓取, 左臂空闲, 左侧找到对应小立方体");
                         moveDevice = 1; // 右臂抓取积木
-                        /// 右臂抓取积木
+                        // NOTE 右臂抓取积木
                         printf("\033[0;32m%s\033[0m\n", "[INFO] 右臂先抓取积木");
+                        MoveJoints(JuggleIniteJoints, Vel_Lv4, Acc_Lv4, 1);
                         // 移动到固定高度
-                        if (HaveObjL) targetPoseTmpL[0] = _graphicsGrasp->height_smallCube_L;
+                        if (HaveObjL) targetPoseTmpL[0] = _graphicsGrasp->height_smallCube_L; // FIXME
                         if (HaveObjR) targetPoseTmpR[0] = _graphicsGrasp->height_smallCube_R;
                         mergeTargetLR(targetPoseTmpL, targetPoseTmpR, targetPose);
-                        MovePose(targetPose, Vel_Lv1, Acc_Lv1, moveDevice);
+                        MovePose(targetPose, Vel_Lv2, Acc_Lv2, moveDevice);
 
                         // 调整末端姿态
                         targetPose = getRobotJoints(2); // 获取当前关节角
                         if (HaveObjL) targetPose[5] += D2R(180 + R2D(targetPoseL[4])); // 获取原始末端关节角, 加补角
                         if (HaveObjR) targetPose[11] += targetPoseR[4]; // 获取原始末端关节角
-                        MoveJoints(targetPose, Vel_Lv3, Acc_Lv3, 2);
+                        MoveJoints(targetPose, Vel_Lv4, Acc_Lv4, 2);
 
                         printf("[INFO] 右臂下降\n");
                         // 右臂下降
@@ -1110,6 +1129,10 @@ bool GraspController::graspControlTask2() {
                         targetPose[8] -= 0.01; // 右臂
                         MovePose(targetPose, Vel_Lv2, Acc_Lv2, 1);
 
+                        HandOpen(1);
+
+                        MoveJoints(JuggleIniteJoints, Vel_Lv2_, Vel_Lv2_, 1);
+
                         printf("\033[0;32m%s\033[0m\n", "[INFO] 装配成功, 左臂放置装配体");
                         // 左臂放置装配体
                         targetPose = getRobotPose(2); // 获取双臂当前位置
@@ -1143,7 +1166,7 @@ bool GraspController::graspControlTask2() {
                         HandClose(moveDevice);
                         // 抬起
                         targetPose = getRobotPose(2); // 获取双臂当前位置
-                        targetPose[0] -= 0.03; // 左臂
+                        targetPose[0] -= 0.06; // 左臂  FIXME 抬高
                         MovePose(targetPose, Vel_Lv2, Acc_Lv2, moveDevice);
 
                         printf("\033[0;32m%s\033[0m\n", "[INFO] 立方体抓取完成, 左右臂移动到交换初始位置, 立方体在左手");
@@ -1156,13 +1179,13 @@ bool GraspController::graspControlTask2() {
                         printf("\033[0;32m%s\033[0m\n", "[INFO] 右臂转动90度");
                         // 调整末端姿态
                         targetPose = getRobotJoints(2); // 获取当前关节角
-                        if (HaveObjR) targetPose[11] -= D2R(90); // 转动90度
-                        MoveJoints(targetPose, Vel_Lv3, Acc_Lv3, 1);
+                        targetPose[11] -= D2R(90); // 转动90度  FIXME
+                        MoveJoints(targetPose, Vel_Lv4, Acc_Lv4, 1);
 
                         printf("\033[0;32m%s\033[0m\n", "[INFO] 左右臂向中间移动");
                         targetPose = getRobotPose(2); // 获取双臂当前位置
-                        targetPose[2] -= 0.05; // 左臂
-                        targetPose[8] -= 0.05; // 右臂
+                        targetPose[2] -= 0.02; // 左臂
+                        targetPose[8] -= 0.02; // 右臂
                         MovePose(targetPose, Vel_Lv2, Acc_Lv2, 2);
 
                         // 右臂抓住小立方体
@@ -1175,17 +1198,22 @@ bool GraspController::graspControlTask2() {
                         targetPose[2] += 0.06; // 左臂
                         MovePose(targetPose, Vel_Lv2, Acc_Lv2, moveDevice);
 
-                        /// 右臂拿到小立方体, 左臂抓取积木
+                        /// 右臂拿到小立方体, NOTE 左臂抓取积木
                         printf("\033[0;32m%s\033[0m\n", "[INFO] 左臂开始抓取积木");
+
+                        MoveJoints(JuggleIniteJoints, Vel_Lv3, Acc_Lv3, 0); // 左臂回积木抓取初始位置  FIXME!!!!
+
+                        /// 需记录当前右臂位置 后返回
+
                         // 移动到固定高度
-                        if (HaveObjL) targetPoseTmpL[0] = _graphicsGrasp->height_smallCube_L;
+                        if (HaveObjL) targetPoseTmpL[0] = _graphicsGrasp->height_smallCube_L; // FIXME
                         mergeTargetLR(targetPoseTmpL, targetPoseTmpR, targetPose);
-                        MovePose(targetPose, Vel_Lv1, Acc_Lv1, moveDevice);
+                        MovePose(targetPose, Vel_Lv2, Acc_Lv2, moveDevice);
 
                         // 调整末端姿态
                         targetPose = getRobotJoints(2); // 获取当前关节角
                         if (HaveObjL) targetPose[5] += D2R(180 + R2D(targetPoseL[4])); // 获取原始末端关节角, 加补角
-                        MoveJoints(targetPose, Vel_Lv3, Acc_Lv3, 2);
+                        MoveJoints(targetPose, Vel_Lv4, Acc_Lv4, 2);
 
                         // 左臂下降
                         targetPose = getRobotPose(2); // 获取双臂当前位置
@@ -1210,12 +1238,26 @@ bool GraspController::graspControlTask2() {
                         MovePose(targetPose, Vel_Lv2, Acc_Lv2, moveDevice);
                         HandOpen(0);
 
+                        // 调整末端姿态
+                        targetPose = getRobotJoints(2); // 获取当前关节角
+                        targetPose[11] += D2R(90); // 转动90度  FIXME
+                        MoveJoints(targetPose, Vel_Lv4, Acc_Lv4, 1);
+
                         printf("\033[0;32m%s\033[0m\n", "[INFO] 装配完成 右臂放置装配体");
                         // 右臂放置装配体
+                        // y方向平移
                         targetPose = getRobotPose(2); // 获取双臂当前位置
-                        targetPose[6] -= 0.1; // 右臂
+                        targetPose[7] = -0.2; // 右臂
+                        MovePose(targetPose, Vel_Lv2, Acc_Lv2, 1);
+
+                        // z方向平移
+                        targetPose = getRobotPose(2); // 获取双臂当前位置
                         targetPose[8] += 0.2; // 右臂
                         MovePose(targetPose, Vel_Lv2, Acc_Lv2, 1);
+
+                        HandOpen(1);
+
+                        MoveInit();
                     }
                 }
             }
@@ -1242,7 +1284,7 @@ bool GraspController::graspControlTask2() {
                         HandClose(moveDevice);
                         // 抬起
                         targetPose = getRobotPose(2); // 获取双臂当前位置
-                        targetPose[6] += 0.03; // 右臂
+                        targetPose[6] += 0.06; // 右臂
                         MovePose(targetPose, Vel_Lv2, Acc_Lv2, moveDevice);
 
                         printf("\033[0;32m%s\033[0m\n", "[INFO] 立方体抓取完成, 左右臂移动到交换初始位置, 立方体在右手");
@@ -1255,13 +1297,13 @@ bool GraspController::graspControlTask2() {
                         printf("\033[0;32m%s\033[0m\n", "[INFO] 左臂转动90度");
                         // 调整末端姿态
                         targetPose = getRobotJoints(2); // 获取当前关节角
-                        if (HaveObjL) targetPose[5] -= D2R(90); // 转动90度
-                        MoveJoints(targetPose, Vel_Lv3, Acc_Lv3, 1);
+                        targetPose[5] -= D2R(90); // 转动90度
+                        MoveJoints(targetPose, Vel_Lv4, Acc_Lv4, 1);
 
                         // 左右臂向中间移动
                         targetPose = getRobotPose(2); // 获取双臂当前位置
-                        targetPose[2] -= 0.05; // 左臂
-                        targetPose[8] -= 0.05; // 右臂
+                        targetPose[2] -= 0.02; // 左臂
+                        targetPose[8] -= 0.02; // 右臂
                         MovePose(targetPose, Vel_Lv2, Acc_Lv2, 2);
 
                         // 左臂抓住小立方体
@@ -1275,17 +1317,18 @@ bool GraspController::graspControlTask2() {
                         targetPose[8] += 0.03; // 右臂
                         MovePose(targetPose, Vel_Lv2, Acc_Lv2, moveDevice);
 
-                        /// 左臂拿到小立方体, 右臂抓取积木
+                        /// 左臂拿到小立方体, NOTE 右臂抓取积木
                         printf("\033[0;32m%s\033[0m\n", "[INFO] 右臂开始抓取积木");
+                        MoveJoints(JuggleIniteJoints, Vel_Lv3, Acc_Lv3, 1); // 左臂回积木抓取初始位置  FIXME!!!!
                         // 移动到固定高度
                         if (HaveObjR) targetPoseTmpR[0] = _graphicsGrasp->height_smallCube_R;
                         mergeTargetLR(targetPoseTmpL, targetPoseTmpR, targetPose);
-                        MovePose(targetPose, Vel_Lv1, Acc_Lv1, moveDevice);
+                        MovePose(targetPose, Vel_Lv2, Acc_Lv2, moveDevice);
 
                         // 调整末端姿态
                         targetPose = getRobotJoints(2); // 获取当前关节角
                         if (HaveObjR) targetPose[11] += targetPoseR[4]; // 获取原始末端关节角
-                        MoveJoints(targetPose, Vel_Lv3, Acc_Lv3, 2);
+                        MoveJoints(targetPose, Vel_Lv4, Acc_Lv4, 2);
 
                         // 右臂下降
                         targetPose = getRobotPose(2); // 获取双臂当前位置
@@ -1315,9 +1358,32 @@ bool GraspController::graspControlTask2() {
                         targetPose[0] += 0.1; // 左臂
                         targetPose[2] += 0.2; // 左臂
                         MovePose(targetPose, Vel_Lv2, Acc_Lv2, 0);
+
+                        // 调整末端姿态
+                        targetPose = getRobotJoints(2); // 获取当前关节角
+                        targetPose[5] += D2R(90); // 转动90度  FIXME
+                        MoveJoints(targetPose, Vel_Lv4, Acc_Lv4, 0);
+
+                        printf("\033[0;32m%s\033[0m\n", "[INFO] 装配完成 左臂放置装配体");
+                        // 左臂放置装配体
+                        // y方向平移
+                        targetPose = getRobotPose(2); // 获取双臂当前位置
+                        targetPose[1] = -0.2; // 左臂
+                        MovePose(targetPose, Vel_Lv2, Acc_Lv2, 0);
+
+                        // z方向平移
+                        targetPose = getRobotPose(2); // 获取双臂当前位置
+                        targetPose[2] += 0.2; // 左臂
+                        MovePose(targetPose, Vel_Lv2, Acc_Lv2, 0);
+
+                        HandOpen(0);
+
+                        MoveInit();
                     }
                 }
             }
+
+            MoveInit();
         }
 
         //////////////////////////////////////////  小立方体  ///////////////////////////////////////////////
@@ -1407,7 +1473,7 @@ bool GraspController::graspControlTask2() {
 
             cout << "[INFO] targetPose: " << targetPose << endl;
 
-            MovePose(targetPose, Vel_Lv1, Acc_Lv1, moveDevice);
+            MovePose(targetPose, Vel_Lv2, Acc_Lv2, moveDevice);
 
             printf("\033[0;31m%s\033[0m\n", "================================= 调整末端姿态 ===============================");
 
@@ -1415,7 +1481,7 @@ bool GraspController::graspControlTask2() {
             if (HaveObjL) targetPose[5] += D2R(180 + R2D(targetPoseL[4])); // 获取原始末端关节角, 加补角
             if (HaveObjR) targetPose[11] += targetPoseR[4]; // 获取原始末端关节角
 
-            MoveJoints(targetPose, Vel_Lv3, Acc_Lv3, 2);
+            MoveJoints(targetPose, Vel_Lv4, Acc_Lv4, 2);
 
             printf("\033[0;31m%s\033[0m\n", "================================= 手抓下降并抓取 ==============================");
 
@@ -1424,7 +1490,7 @@ bool GraspController::graspControlTask2() {
             targetPose[0] += 0.04; // 左臂
             targetPose[6] -= 0.04; // 右臂
 
-            MovePose(targetPose, Vel_Lv2, Acc_Lv2, moveDevice);
+            MovePose(targetPose, Vel_Lv2_, Acc_Lv2_, moveDevice);
 
             /// 手抓闭合
             HandClose(0);
@@ -1436,7 +1502,7 @@ bool GraspController::graspControlTask2() {
 
             mergeTargetLR(targetPoseTmpL, targetPoseTmpR, targetPose);
 
-            MovePose(targetPose, Vel_Lv1, Acc_Lv1, moveDevice);
+            MovePose(targetPose, Vel_Lv2_, Acc_Lv2_, moveDevice);
 
             printf("\033[0;31m%s\033[0m\n", "================================= 放置到指定位置 ==============================");
 
@@ -1469,7 +1535,7 @@ bool GraspController::graspControlTask2() {
             targetPose[0] += 0.04; // 左臂
             targetPose[6] -= 0.04; // 右臂
 
-            MovePose(targetPose, Vel_Lv2, Acc_Lv2, moveDevice);
+            MovePose(targetPose, Vel_Lv2_, Acc_Lv2_, moveDevice);
 
             /// 手抓张开
             HandOpen(0);
@@ -1480,7 +1546,7 @@ bool GraspController::graspControlTask2() {
             targetPose[0] -= 0.04; // 左臂
             targetPose[6] += 0.04; // 右臂
 
-            MovePose(targetPose, Vel_Lv2, Acc_Lv2, moveDevice);
+            MovePose(targetPose, Vel_Lv2_, Acc_Lv2_, moveDevice);
 
             /// 已抓取小立方体数统计
             if (moveDevice == 2) {
@@ -1671,6 +1737,19 @@ bool GraspController::graspControlBigCubeT3() {
         int max1Idx = idx[idx.size()];
         int max2Idx = idx[idx.size()-1];
 
+        std::vector<int> pickIndices; // 待抓取木块顺序列表索引, 先y大的后y小的 下上下上 奇数号在下 偶数号在上
+//        for (size_t i = 0; i < BigCubeCentery.size()/2; i++) {
+//            pickIndices.push_back(idx[idx.size()-1]);
+//            pickIndices.push_back(idx[i]);
+//        }
+
+        // 近处
+        pickIndices.push_back(idx[idx.size()-1]); // y最大的
+        pickIndices.push_back(idx[idx.size()-2]); // y第二大的
+
+        // 远处
+        pickIndices.push_back(idx[0]); // y最小的
+        pickIndices.push_back(idx[1]); // y第二小的
 
         /// 计算实际位置
         std::vector<std::pair<cv::Point3f, cv::Point3f>> pointListLR;
@@ -1681,8 +1760,10 @@ bool GraspController::graspControlBigCubeT3() {
             float x1, y1, z1; // 实际位置1
             float x2, y2, z2; // 实际位置2
             float x3, y3, z3; // 中心点实际位置
-            if (!_graphicsGrasp->getPointLoc(PointListL[j].second, PointListL[j].first, x1, y1, z1, cloud)) continue;
-            if (!_graphicsGrasp->getPointLoc(PointListR[j].second, PointListR[j].first, x2, y2, z2, cloud)) continue;
+            if (!_graphicsGrasp->getPointLoc(PointListL[j].second, PointListL[j].first, x1, y1, z1, cloud))
+                continue;
+            if (!_graphicsGrasp->getPointLoc(PointListR[j].second, PointListR[j].first, x2, y2, z2, cloud))
+                continue;
             if (!_graphicsGrasp->getPointLoc(BigCubeCenter[j].y, BigCubeCenter[j].x, x3, y3, z3, cloud)) continue;
             pointL.x = x1;
             pointL.y = y1;
@@ -1704,201 +1785,232 @@ bool GraspController::graspControlBigCubeT3() {
             printf("[INFO] 中心抓取点实际坐标: [%f,%f,%f]\n\n", x3, y3, z3);
         }
 
-        std::vector<float> coorRawL = {pointListLR[0].first.x, pointListLR[0].first.y, pointListLR[0].first.z};
-        std::vector<float> coorRawR = {pointListLR[0].second.x, pointListLR[0].second.y, pointListLR[0].second.z};
-        std::vector<float> coorRawC = {pointListC[0].x, pointListC[0].y, pointListC[0].z}; // 中心点实际坐标
+        /// 各木块抓取循环
+        for (size_t i = 0; i < pickIndices.size(); i++) {
+            printf("\033[0;31m%s\033[0m\n", "================================= 抓取位置计算 ===============================");
 
-        std::vector<double> b2oXYZRPYL = _graphicsGrasp->calcRealCoor(coorRawL, 0); // 计算基坐标到物体转换关系
-        std::vector<double> b2oXYZRPYR = _graphicsGrasp->calcRealCoor(coorRawR, 1); // 计算基坐标到物体转换关系
+            int CurrIndice = pickIndices[i];
+            CurrIndice = 0; // FIXME 仅抓取第一个木块 ！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！
 
-        std::vector<double> b2oXYZRPYL_C = _graphicsGrasp->calcRealCoor(coorRawC, 0); // 中心点在左臂下坐标
-        std::vector<double> b2oXYZRPYR_C = _graphicsGrasp->calcRealCoor(coorRawC, 1); // 中心点在右臂下坐标
+            printf("\033[0;31m%s\033[0m\n", "当前抓取的木块位置：\n");
+            cout << RotRectsAndID.first[CurrIndice].boundingRect() << endl << "CurrIndice: " << CurrIndice << endl;
 
-        // 修改姿态
-        b2oXYZRPYL[3] = 1.54;
-        b2oXYZRPYL[4] = 0;
-        b2oXYZRPYL[5] = 1.54;
+            std::vector<float> coorRawL = {pointListLR[CurrIndice].first.x, pointListLR[CurrIndice].first.y, pointListLR[CurrIndice].first.z};
+            std::vector<float> coorRawR = {pointListLR[CurrIndice].second.x, pointListLR[CurrIndice].second.y, pointListLR[CurrIndice].second.z};
+            std::vector<float> coorRawC = {pointListC[CurrIndice].x, pointListC[CurrIndice].y, pointListC[CurrIndice].z}; // 中心点实际坐标
 
-        b2oXYZRPYR[3] = 1.54;
-        b2oXYZRPYR[4] = 0;
-        b2oXYZRPYR[5] = -1.54;
+            std::vector<double> b2oXYZRPYL = _graphicsGrasp->calcRealCoor(coorRawL, 0); // 计算基坐标到物体转换关系
+            std::vector<double> b2oXYZRPYR = _graphicsGrasp->calcRealCoor(coorRawR, 1); // 计算基坐标到物体转换关系
 
-        b2oXYZRPYL[0] = _graphicsGrasp->BigCubeT3ThreshL;
-        b2oXYZRPYR[0] = _graphicsGrasp->BigCubeT3ThreshR;
+            std::vector<double> b2oXYZRPYL_C = _graphicsGrasp->calcRealCoor(coorRawC, 0); // 中心点在左臂下坐标
+            std::vector<double> b2oXYZRPYR_C = _graphicsGrasp->calcRealCoor(coorRawC, 1); // 中心点在右臂下坐标
 
-        printf("[INFO] 左侧抓取点机器人坐标: [%f,%f,%f,%f,%f,%f]\n", b2oXYZRPYL[0], b2oXYZRPYL[1],
-               b2oXYZRPYL[2], b2oXYZRPYL[3], b2oXYZRPYL[4], b2oXYZRPYL[5]);
-        printf("[INFO] 右侧抓取点机器人坐标: [%f,%f,%f,%f,%f,%f]\n", b2oXYZRPYR[0], b2oXYZRPYR[1],
-               b2oXYZRPYR[2], b2oXYZRPYR[3], b2oXYZRPYR[4], b2oXYZRPYR[5]);
-        printf("[INFO] 中心抓取点左臂坐标: [%f,%f,%f,%f,%f,%f]\n", b2oXYZRPYL_C[0], b2oXYZRPYL_C[1],
-               b2oXYZRPYL_C[2], b2oXYZRPYL_C[3], b2oXYZRPYL_C[4], b2oXYZRPYL_C[5]);
+            // 修改姿态
+            b2oXYZRPYL[3] = 1.54;
+            b2oXYZRPYL[4] = 0;
+            b2oXYZRPYL[5] = 1.54;
 
-        printf("\033[0;31m%s\033[0m\n", "=================================== 回初始位置 ===============================");
-        MoveJoints(IniteJoints, Vel_Lv3, Acc_Lv3, 2);
-//        MoveJoints(IniteJointsOld, Vel_Lv3, Acc_Lv3, 2);
+            b2oXYZRPYR[3] = 1.54;
+            b2oXYZRPYR[4] = 0;
+            b2oXYZRPYR[5] = -1.54;
 
-        printf("\033[0;31m%s\033[0m\n", "============================= 移动到积木抓取初始位置 ===========================");
-        MoveJoints(JuggleIniteJoints, Vel_Lv3, Acc_Lv3, 2);
+            b2oXYZRPYL[0] = _graphicsGrasp->BigCubeT3ThreshL;
+            b2oXYZRPYR[0] = _graphicsGrasp->BigCubeT3ThreshR;
 
-        printf("\033[0;31m%s\033[0m\n", "================================= 移动到正上方 ===============================");
+            printf("[INFO] 左侧抓取点机器人坐标: [%f,%f,%f,%f,%f,%f]\n", b2oXYZRPYL[0], b2oXYZRPYL[1],
+                   b2oXYZRPYL[2], b2oXYZRPYL[3], b2oXYZRPYL[4], b2oXYZRPYL[5]);
+            printf("[INFO] 右侧抓取点机器人坐标: [%f,%f,%f,%f,%f,%f]\n", b2oXYZRPYR[0], b2oXYZRPYR[1],
+                   b2oXYZRPYR[2], b2oXYZRPYR[3], b2oXYZRPYR[4], b2oXYZRPYR[5]);
+            printf("[INFO] 中心抓取点左臂坐标: [%f,%f,%f,%f,%f,%f]\n", b2oXYZRPYL_C[0], b2oXYZRPYL_C[1],
+                   b2oXYZRPYL_C[2], b2oXYZRPYL_C[3], b2oXYZRPYL_C[4], b2oXYZRPYL_C[5]);
 
-        if (PickedBigCubeCnt > 1) exit(2); // FIXME 过多的退出
+//            printf("\033[0;31m%s\033[0m\n", "=================================== 回初始位置 ===============================");
+//            MoveJoints(IniteJoints, Vel_Lv3, Acc_Lv3, 2);
 
-        std::vector<double> targetPoseTmpL = b2oXYZRPYL;
-        std::vector<double> targetPoseTmpR = b2oXYZRPYR;
-        std::vector<double> targetPose;
+            printf("\033[0;31m%s\033[0m\n", "============================= 移动到积木抓取初始位置 ===========================");
+            MoveJoints(JuggleIniteJoints, Vel_Lv3, Acc_Lv3, 2);
 
-        // 移动到固定高度
-        targetPoseTmpL[0] = _graphicsGrasp->height_bigCube_L;
-        targetPoseTmpR[0] = _graphicsGrasp->height_bigCube_R;
+            printf("\033[0;31m%s\033[0m\n", "================================= 移动到正上方 ===============================");
 
-        mergeTargetLR(targetPoseTmpL, targetPoseTmpR, targetPose);
+            if (PickedBigCubeCnt > 3) exit(2); // FIXME 过多的退出
 
-        cout << "[INFO] 大长方体抓取 targetPose: " << targetPose << endl;
+            std::vector<double> targetPoseTmpL = b2oXYZRPYL;
+            std::vector<double> targetPoseTmpR = b2oXYZRPYR;
+            std::vector<double> targetPose;
 
-        MovePose(targetPose, Vel_Lv1, Acc_Lv1, 2);
+            // 移动到固定高度
+            targetPoseTmpL[0] = _graphicsGrasp->height_bigCube_L;
+            targetPoseTmpR[0] = _graphicsGrasp->height_bigCube_R;
 
-        printf("\033[0;31m%s\033[0m\n", "================================= 调整末端姿态 ===============================");
+            mergeTargetLR(targetPoseTmpL, targetPoseTmpR, targetPose);
 
-        targetPose = getRobotJoints(2); // 获取当前关节角
-        targetPose[5] += D2R(180 + BigCubeAngle[0]); // 获取原始末端关节角, 加补角
-        targetPose[11] += D2R(BigCubeAngle[0]); // 获取原始末端关节角
-        printf ("[INFO] 末端角度调整 左:%f 右:%f\n", targetPose[5], targetPose[11]);
+            cout << "[INFO] 大长方体抓取 targetPose: " << targetPose << endl;
 
-        MoveJoints(targetPose, Vel_Lv3, Acc_Lv3, 2);
+            MovePose(targetPose, Vel_Lv1, Acc_Lv1, 2);
 
-        printf("\033[0;31m%s\033[0m\n", "================================= 手抓下降并抬起 ==============================");
+            printf("\033[0;31m%s\033[0m\n", "================================= 调整末端姿态 ===============================");
 
-        /// 修改姿态, 手臂垂直下降
-        targetPose = getRobotPose(2); // 获取双臂当前位置
-        targetPose[0] += 0.03; // 左臂
-        targetPose[6] -= 0.03; // 右臂
+            targetPose = getRobotJoints(2); // 获取当前关节角
+            targetPose[5] += D2R(180 + BigCubeAngle[0]); // 获取原始末端关节角, 加补角
+            targetPose[11] += D2R(BigCubeAngle[0]); // 获取原始末端关节角
+            printf("[INFO] 末端角度调整 左:%f 右:%f\n", targetPose[5], targetPose[11]);
 
-        MovePose(targetPose, Vel_Lv2, Acc_Lv2, 2);
+            MoveJoints(targetPose, Vel_Lv4, Acc_Lv4, 2);
 
-        /// 手抓闭合
-        HandClose(0);
-        HandClose(1);
+            printf("\033[0;31m%s\033[0m\n", "================================= 手抓下降并抬起 ==============================");
 
-        /// 修改姿态, 手臂垂直抬起 抬起高度与已抓取木块数成正比 NOTE 此时抬起高度应高于长方体高度
-        targetPose = getRobotPose(2); // 获取双臂当前位置
-        targetPose[0] -= (0.005 + 0.05 * PickedBigCubeCnt); // 右臂
-        targetPose[6] += (0.005 + 0.05 * PickedBigCubeCnt); // 左臂
-
-        MovePose(targetPose, Vel_Lv1, Acc_Lv1, 2);
-
-        printf("\033[0;31m%s\033[0m\n", "================================= 放置到指定位置 ==============================");
-
-        /// 放置位置以左臂为准, 放置到左臂坐标系下机器人正前方
-        targetPose = getRobotPose(2); // 获取双臂当前位置
-
-        // 获取左臂坐标系下中心点位置
-        double CurrY_InL = b2oXYZRPYL_C[1];
-        double CurrZ_InL = b2oXYZRPYL_C[2];
-
-        printf ("CurrZ_InL %f CurrY_InL %f\n", CurrZ_InL, CurrY_InL);
-
-        // 左臂坐标系下放置位置
-        // 中间
-        double AimZ = -0.22;
-        double AimY = -0.29;
-
-        // 左臂将木块移动到指定位置需要移动的距离
-        double DistanceY = AimY - CurrY_InL;
-        double DistanceZ = AimZ - CurrZ_InL;
-
-        printf ("DistanceZ %f DistanceY %f\n", DistanceZ, DistanceY);
-
-        /// 在当前位置基础上移动一定距离, 左右臂移动距离相同
-        // 左臂
-        targetPose[1] = targetPose[1] + DistanceY;
-        targetPose[2] = targetPose[2] + DistanceZ;
-        // 右臂
-        targetPose[7] = targetPose[7] + DistanceY;
-        targetPose[8] = targetPose[8] - DistanceZ;
-
-        MovePose(targetPose, Vel_Lv1, Acc_Lv1, 2);
-
-        printf("\033[0;31m%s\033[0m\n", "============================ 左臂调整木块姿态 右臂抬起 ==========================");
-
-        /// 右手张开
-        HandOpen(1);
-
-        float AngleLong = BigCubeAngle[0] - 90; // 大木块长边角度
-        float AimAngle; // 手抓目标角度 NOTE （长方体长边目标角度 -135(捺) 或 -45(撇) 时 对应手抓末端角度为 -45 或 -135）
-
-        if (BigCubeAngle[0] > -90) { // 捺方向 左臂移动
-            // 抬起右臂
+            /// 修改姿态, 手臂垂直下降
             targetPose = getRobotPose(2); // 获取双臂当前位置
-            targetPose[6] += 0.03; // 右臂
-            MovePose(targetPose, Vel_Lv1, Acc_Lv1, 1);
+            targetPose[0] += 0.03; // 左臂
+            targetPose[6] -= 0.03; // 右臂
 
-            // 左臂调整木块姿态
-            AimAngle = -45;
-            // 左臂目标位置计算
-            double currY_L = targetPose[1]; // 左臂当前Y坐标
-            double currZ_L = targetPose[2]; // 左臂当前Z坐标
-            double detaY_L = std::fabs(currY_L - AimY); // 左臂抓取点与木块中心位置Y方向的距离
-            double detaZ_L = std::fabs(currZ_L - AimZ); // 左臂抓取点与木块中心位置Z方向的距离
-            double radiu = std::sqrt(std::pow(detaY_L, 2) + std::pow(detaZ_L, 2)); // 积木半径
-            // 摆放到 -135 度时左臂的位置
-            double AimY_New = AimY - radiu / std::sqrt(2); // 左臂Y目标位置, 远离机器人为减
-            double AimZ_New = AimZ + radiu / std::sqrt(2); // 左臂Z目标位置, 远离机器人为加
+            MovePose(targetPose, Vel_Lv2_, Acc_Lv2_, 2);
 
-            // 调整左臂位置
-            targetPose[1] = AimY_New;
-            targetPose[2] = AimZ_New;
+            /// 手抓闭合
+            HandClose(0);
+            HandClose(1);
+
+            /// 修改姿态, 手臂垂直抬起 抬起高度与已抓取木块数成正比 NOTE 此时抬起高度应高于长方体高度
+
+            if ((i+1)%2 == 1) {
+                printf("\033[0;33m%s\033[0m\n", "奇数次抓取, 少抬高");
+                targetPose = getRobotPose(2); // 获取双臂当前位置
+                targetPose[0] -= (0.005); // 右臂
+                targetPose[6] += (0.005); // 左臂
+            } else {
+                printf("\033[0;33m%s\033[0m\n", "偶数次抓取, 多抬高");
+                targetPose = getRobotPose(2); // 获取双臂当前位置
+                targetPose[0] -= (0.005 + 0.05); // 右臂
+                targetPose[6] += (0.005 + 0.05); // 左臂
+            }
+
+            MovePose(targetPose, Vel_Lv1, Acc_Lv1, 2);
+
+            printf("\033[0;31m%s\033[0m\n", "================================= 放置到指定位置 ==============================");
+
+            /// 放置位置以左臂为准, 放置到左臂坐标系下机器人正前方
+            targetPose = getRobotPose(2); // 获取双臂当前位置
+
+            // 获取左臂坐标系下中心点位置
+            double CurrY_InL = b2oXYZRPYL_C[1];
+            double CurrZ_InL = b2oXYZRPYL_C[2];
+
+            printf("CurrZ_InL %f CurrY_InL %f\n", CurrZ_InL, CurrY_InL);
+
+            // 左臂坐标系下放置位置
+            // 中间
+            double AimZ;
+            double AimY;
+            if (i < 2) { // 前两个积木, 放置到机器人近处
+                printf("\033[0;33m%s\033[0m\n", "是前两个积木, 放置到机器人近处");
+                AimZ = -0.22;
+                AimY = -0.29;
+            } else { // 后两个积木, 放置到机器人远处
+                printf("\033[0;33m%s\033[0m\n", "是后两个积木, 放置到机器人远处");
+                AimZ = -0.22;
+                AimY = -0.42;
+            }
+
+            // 左臂将木块移动到指定位置需要移动的距离
+            double DistanceY = AimY - CurrY_InL;
+            double DistanceZ = AimZ - CurrZ_InL;
+
+            printf("DistanceZ %f DistanceY %f\n", DistanceZ, DistanceY);
+
+            /// 在当前位置基础上移动一定距离, 左右臂移动距离相同
+            // 左臂
+            targetPose[1] = targetPose[1] + DistanceY;
+            targetPose[2] = targetPose[2] + DistanceZ;
+            // 右臂
+            targetPose[7] = targetPose[7] + DistanceY;
+            targetPose[8] = targetPose[8] - DistanceZ;
+
+            MovePose(targetPose, Vel_Lv1, Acc_Lv1, 2);
+
+            printf("\033[0;31m%s\033[0m\n", "============================ 左臂调整木块姿态 右臂抬起 ==========================");
+
+            /// 右手张开
+            HandOpen(1);
+
+            float AimAngle; // 手抓目标角度 NOTE （长方体长边目标角度 -135(捺) 或 -45(撇) 时 对应手抓末端角度为 -45 或 -135）
+
+            if ((i+1)%2 == 1) { // 奇数次抓取, 调整角度为 -45
+                // 左臂调整木块姿态
+                AimAngle = -45;
+            } else { // 偶数次抓取, 调整角度为 -135
+                // 左臂调整木块姿态
+                AimAngle = -135;
+            }
+
+            if (BigCubeAngle[0] > -90) { // 捺方向 左臂移动
+                // 抬起右臂
+                targetPose = getRobotPose(2); // 获取双臂当前位置
+                targetPose[6] += 0.03; // 右臂
+                MovePose(targetPose, Vel_Lv1, Acc_Lv1, 1);
+
+                // 左臂目标位置计算
+                double currY_L = targetPose[1]; // 左臂当前Y坐标
+                double currZ_L = targetPose[2]; // 左臂当前Z坐标
+                double detaY_L = std::fabs(currY_L - AimY); // 左臂抓取点与木块中心位置Y方向的距离
+                double detaZ_L = std::fabs(currZ_L - AimZ); // 左臂抓取点与木块中心位置Z方向的距离
+                double radiu = std::sqrt(std::pow(detaY_L, 2) + std::pow(detaZ_L, 2)); // 积木半径
+                // 摆放到 -135 度时左臂的位置
+                double AimY_New = AimY - radiu / std::sqrt(2); // 左臂Y目标位置, 远离机器人为减
+                double AimZ_New = AimZ + radiu / std::sqrt(2); // 左臂Z目标位置, 远离机器人为加
+
+                // 调整左臂位置
+                targetPose[1] = AimY_New;
+                targetPose[2] = AimZ_New;
+                MovePose(targetPose, Vel_Lv1, Acc_Lv1, 0);
+
+                // 调整左臂末端角度
+                targetPose = getRobotJoints(2); // 获取双臂当前关节角
+                targetPose[5] -= D2R(180 + BigCubeAngle[0]); // 先获取0位关节角
+                targetPose[5] += D2R(180 + (AimAngle)); // 再计算目标关节角
+                MoveJoints(targetPose, Vel_Lv3, Acc_Lv3, 0);
+
+            } else if (BigCubeAngle[0] < -90) { // 撇方向 左臂移动
+                // 抬起右臂
+                targetPose = getRobotPose(2); // 获取双臂当前位置
+                targetPose[6] += 0.03; // 右臂
+                MovePose(targetPose, Vel_Lv1, Acc_Lv1, 1);
+
+                // 左臂目标位置计算
+                double currY_L = targetPose[1]; // 左臂当前Y坐标
+                double currZ_L = targetPose[2]; // 左臂当前Z坐标
+                double detaY_L = std::fabs(currY_L - AimY); // 左臂抓取点与木块中心位置Y方向的距离
+                double detaZ_L = std::fabs(currZ_L - AimZ); // 左臂抓取点与木块中心位置Z方向的距离
+                double radiu = std::sqrt(std::pow(detaY_L, 2) + std::pow(detaZ_L, 2)); // 积木半径
+                // 摆放到 -45 度时左臂的位置
+                double AimY_New = AimY + radiu / std::sqrt(2); // 左臂Y目标位置, 远离机器人为减
+                double AimZ_New = AimZ + radiu / std::sqrt(2); // 左臂Z目标位置, 远离机器人为加
+
+                // 调整左臂位置
+                targetPose[1] = AimY_New;
+                targetPose[2] = AimZ_New;
+                MovePose(targetPose, Vel_Lv1, Acc_Lv1, 0);
+
+                // 调整左臂末端角度
+                targetPose = getRobotJoints(2); // 获取双臂当前关节角
+                targetPose[5] -= D2R(180 + BigCubeAngle[0]); // 先获取0位关节角
+                targetPose[5] += D2R(180 + (AimAngle)); // 再计算目标关节角
+                MoveJoints(targetPose, Vel_Lv3, Acc_Lv3, 0);
+            }
+
+            printf("\033[0;31m%s\033[0m\n", "================================= 左臂抬起 ==================================");
+
+            /// 左手张开
+            HandOpen(0);
+
+            // 抬起左臂
+            targetPose = getRobotPose(2); // 获取双臂当前位置
+            targetPose[0] -= 0.02; // 左臂
             MovePose(targetPose, Vel_Lv1, Acc_Lv1, 0);
 
-            // 调整左臂末端角度
-            targetPose = getRobotJoints(2); // 获取双臂当前关节角
-            targetPose[5] -= D2R(180 + BigCubeAngle[0]); // 先获取0位关节角
-            targetPose[5] += D2R(180 + (AimAngle)); // 再计算目标关节角
-            MoveJoints(targetPose, Vel_Lv3, Acc_Lv3, 0);
+            printf("\033[0;31m%s\033[0m\n\n\n", "================================= 木块摆放成功 ================================");
 
-        } else if (BigCubeAngle[0] < -90) { // 撇方向 左臂移动
-            // 抬起右臂
-            targetPose = getRobotPose(2); // 获取双臂当前位置
-            targetPose[6] += 0.03; // 右臂
-            MovePose(targetPose, Vel_Lv1, Acc_Lv1, 1);
-
-            // 左臂调整木块姿态
-            AimAngle = -135;
-            // 左臂目标位置计算
-            double currY_L = targetPose[1]; // 左臂当前Y坐标
-            double currZ_L = targetPose[2]; // 左臂当前Z坐标
-            double detaY_L = std::fabs(currY_L - AimY); // 左臂抓取点与木块中心位置Y方向的距离
-            double detaZ_L = std::fabs(currZ_L - AimZ); // 左臂抓取点与木块中心位置Z方向的距离
-            double radiu = std::sqrt(std::pow(detaY_L, 2) + std::pow(detaZ_L, 2)); // 积木半径
-            // 摆放到 -45 度时左臂的位置
-            double AimY_New = AimY + radiu / std::sqrt(2); // 左臂Y目标位置, 远离机器人为减
-            double AimZ_New = AimZ + radiu / std::sqrt(2); // 左臂Z目标位置, 远离机器人为加
-
-            // 调整左臂位置
-            targetPose[1] = AimY_New;
-            targetPose[2] = AimZ_New;
-            MovePose(targetPose, Vel_Lv1, Acc_Lv1, 0);
-
-            // 调整左臂末端角度
-            targetPose = getRobotJoints(2); // 获取双臂当前关节角
-            targetPose[5] -= D2R(180 + BigCubeAngle[0]); // 先获取0位关节角
-            targetPose[5] += D2R(180 + (AimAngle)); // 再计算目标关节角
-            MoveJoints(targetPose, Vel_Lv3, Acc_Lv3, 0);
+            PickedBigCubeCnt++;
         }
-
-        printf("\033[0;31m%s\033[0m\n", "================================= 左臂抬起 ==================================");
-
-        /// 左手张开
-        HandOpen(0);
-
-        // 抬起左臂
-        targetPose = getRobotPose(2); // 获取双臂当前位置
-        targetPose[0] -= 0.02; // 左臂
-        MovePose(targetPose, Vel_Lv1, Acc_Lv1, 0);
-
-        printf("\033[0;31m%s\033[0m\n\n\n", "================================= 木块摆放成功 ================================");
-
-        PickedBigCubeCnt++;
     }
 }
 
@@ -1966,14 +2078,14 @@ bool GraspController::graspControlTask4() {
         targetPose[0] += 0.05; // 左臂
         targetPose[6] -= 0.05; // 右臂
 
-        MovePose(targetPose, Vel_Lv2, Acc_Lv2, 2);
+        MovePose(targetPose, Vel_Lv2_, Acc_Lv2_, 2);
 
         /// 手臂水平向前移动
         targetPose = getRobotPose(2); // 获取双臂当前位置
         targetPose[1] -= 0.05; // 左臂
         targetPose[7] -= 0.05; // 右臂
 
-        MovePose(targetPose, Vel_Lv2, Acc_Lv2, 2);
+        MovePose(targetPose, Vel_Lv2_, Acc_Lv2_, 2);
 
         printf("\033[0;31m%s\033[0m\n", "=================================== 端起盘子 ================================");
 
@@ -2006,14 +2118,14 @@ bool GraspController::graspControlTask4() {
         targetPose[0] -= 0.05; // 左臂
         targetPose[6] += 0.05; // 右臂
 
-        MovePose(targetPose, Vel_Lv2, Acc_Lv2, 2);
+        MovePose(targetPose, Vel_Lv2_, Acc_Lv2_, 2);
 
         /// 手臂向两侧移动
         targetPose = getRobotPose(2); // 获取双臂当前位置
         targetPose[2] += 0.05; // 左臂
         targetPose[8] += 0.05; // 右臂
 
-        MovePose(targetPose, Vel_Lv2, Acc_Lv2, 2);
+        MovePose(targetPose, Vel_Lv2_, Acc_Lv2_, 2);
 
 
         printf("\033[0;31m%s\033[0m\n\n\n", "================================== 端取成功 =================================");

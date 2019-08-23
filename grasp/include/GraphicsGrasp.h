@@ -192,13 +192,15 @@ public:
     const float LeftOrRightThresh = 400.0; // 左右臂分工阈值, 列数小于阈值为左臂管辖
     const float WorkAreaThreshL = 280.0; // 左侧工作区域分割阈值
     const float WorkAreaThreshR = 525.0; // 右侧工作区域分割阈值
+    const float WorkAreaThreshLL = 150.0; // 左侧工作区域分割阈值
+    const float WorkAreaThreshRR = 650.0; // 右侧工作区域分割阈值
 
-    const float lieThreshL = 0.61; // 积木躺着或立着x方向阈值, 左 // 大于此值则为躺着的
-    const float lieThreshR = -0.54; // 积木躺着或立着x方向阈值, 右 // 小于此值即为立着的
+    const float lieThreshL = 0.67; // 积木躺着或立着x方向阈值, 左 // 大于此值则为躺着的 0.656 立着 0.683 躺着
+    const float lieThreshR = -0.63; // 积木躺着或立着x方向阈值, 右 // 小于此值即为躺着的 -0.616 立着 -0.643 躺着
 
     /// 积木抓取固定高度
-    const float height_Lv1_L = 0.29; // 左臂抓取高积木所到深度
-    const float height_Lv1_R = -0.29; // 右臂抓取高积木所到深度
+    const float height_Lv1_L = 0.25 - 0.03; // 左臂抓取高积木所到深度
+    const float height_Lv1_R = -0.26 + 0.03; // 右臂抓取高积木所到深度
     // 立着
 //    const float height_Lv2_L = 0.30 - 0.03; // 左臂抓取低积木所到深度
 //    const float height_Lv2_R = -0.30 + 0.03; // 右臂抓取低积木所到深度
@@ -206,7 +208,7 @@ public:
 //    const float height_Lv2_L = 0.345 - 0.03; // 左臂抓取低积木所到深度
 //    const float height_Lv2_R = -0.343 + 0.03; // 右臂抓取低积木所到深度
 
-    // 躺着 大爪子
+    /// 躺着 大爪子 积木抓取固定高度
     const float height_Lv2_L = 0.30 - 0.03; // 左臂抓取低积木所到深度
     const float height_Lv2_R = -0.31 + 0.03; // 右臂抓取低积木所到深度
 
@@ -215,8 +217,8 @@ public:
     const float height_bigCube_R = -0.36 + 0.03;
 
     /// 小立方体抓取固定高度
-    const float height_smallCube_L = 0.35 - 0.03;
-    const float height_smallCube_R = -0.35 + 0.03;
+    const float height_smallCube_L = 0.37 - 0.03; // FIXME
+    const float height_smallCube_R = -0.37 + 0.03; // FIXME
 
     /// 大长方体抓取固定高度
     const float BigCubeT3ThreshL = 0.233;

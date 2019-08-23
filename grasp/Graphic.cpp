@@ -16,15 +16,15 @@ vector<size_t> sort_indexes_e(vector<T> &v)
 
 void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat color, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud) {
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID, RotRectsAndIDTop;
-    std::vector<double> Pose;
+    std::vector<double> PoseL, PoseR;
 
-    const int juggleOrCube = 1; /// 0为积木, 1为大型物体
+    const int juggleOrCube = 0; /// 0为积木, 1为大型物体
 
     if (juggleOrCube == 0) {
         /// Yolo积木检测
 //        RotRectsAndID = _graphicsGrasp->detectGraspYolo(color, 200, 1); // 利用HSV阈值分割顶面
-//        RotRectsAndID = _graphicsGrasp->detectGraspYoloPro(color, cloud, 120, 1); // 利用深度分割获取顶面
-        RotRectsAndID = _graphicsGrasp->detectGraspYoloProT2(color, cloud, 120, 1); // 不检测三棱柱
+        RotRectsAndID = _graphicsGrasp->detectGraspYoloPro(color, cloud, 120, 1); // 利用深度分割获取顶面
+//        RotRectsAndID = _graphicsGrasp->detectGraspYoloProT2(color, cloud, 120, 1); // 不检测三棱柱
     } else if (juggleOrCube == 1) {
         /// 大型物体检测
 //        RotRectsAndID = _graphicsGrasp->detectBigObj(color, cloud, 2, 200, 0.7, 2); // 检测大正方体, 高阈值 NOTE:检测大球和大正方体使用的阈值不一样
@@ -168,6 +168,13 @@ void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat
         cout << vecs << endl;
         cout << idx << endl;
 
+        std::vector<int> pickIndices; // 待抓取木块顺序列表索引, 先y大的后y小的
+        for (size_t i = 0; i < BigCubeCentery.size()/2; i++) {
+            pickIndices.push_back(idx[idx.size()-1]);
+            pickIndices.push_back(idx[i]);
+        }
+        cout << "pickIndices: " << pickIndices << endl;
+
         exit(-10);
 #endif
 
@@ -221,7 +228,21 @@ void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat
 
     for (size_t i = 0; i < RotRectsAndID.first.size(); i++) {
 
-        _graphicsGrasp->getObjPose(RotRectsAndID.first[i], Pose, cloud, juggleOrCube, 0, 1, 3.0);
+        _graphicsGrasp->getObjPose(RotRectsAndID.first[i], PoseL, cloud, juggleOrCube, 0, 0, 3.0);
+
+        if (PoseL[0] > _graphicsGrasp->lieThreshL) { // 躺着的
+            printf("[INFO] 左臂待抓取物体为躺着的\n");
+        } else { // 立着的
+            printf("[INFO] 左臂待抓取物体为立着的");
+        }
+
+        _graphicsGrasp->getObjPose(RotRectsAndID.first[i], PoseR, cloud, juggleOrCube, 0, 1, 3.0);
+
+        if (PoseR[0] < _graphicsGrasp->lieThreshR) { // 躺着的
+            printf("[INFO] 右臂待抓取物体为躺着的");
+        } else { // 立着的
+            printf("[INFO] 右臂待抓取物体为立着的");
+        }
 
         /// 显示目标物体外接矩形
         cv::Point2f P[4];
@@ -299,12 +320,24 @@ int main(int argc, char** argv)
 //    color = cv::imread("../../../grasp/data/images/old/20_color_0818.jpg");
 //    depth = cv::imread("../../../grasp/data/images/old/20_depth_0818.png", -1);
 
-    color = cv::imread("../../../grasp/data/images/35_color_0822.jpg");
-    depth = cv::imread("../../../grasp/data/images/35_depth_0822.png", -1);
+//    color = cv::imread("../../../grasp/data/images/35_color_0822.jpg");
+//    depth = cv::imread("../../../grasp/data/images/35_depth_0822.png", -1);
 
     // 积木
 //    color = cv::imread("../../../grasp/data/images/old/04_color_0817.jpg");
 //    depth = cv::imread("../../../grasp/data/images/old/04_depth_0817.png", -1);
+
+    // 立着
+    color = cv::imread("../../../grasp/data/images/27_color_0821.jpg");
+    depth = cv::imread("../../../grasp/data/images/27_depth_0821.png", -1);
+
+    // 躺着
+//    color = cv::imread("../../../grasp/data/images/37_color_0821.jpg");
+//    depth = cv::imread("../../../grasp/data/images/37_depth_0821.png", -1);
+
+//    color = cv::imread("../../../grasp/data/images/34_color_0821.jpg");
+//    depth = cv::imread("../../../grasp/data/images/34_depth_0821.png", -1);
+
 
 //    color = cv::imread("/home/hustac/test1.jpg");
 //    depth = cv::imread("/home/hustac/test1.png", -1);
