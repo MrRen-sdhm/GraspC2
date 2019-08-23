@@ -18,7 +18,7 @@ void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat
     std::pair<std::vector<cv::RotatedRect>, std::vector<int>> RotRectsAndID, RotRectsAndIDTop;
     std::vector<double> PoseL, PoseR;
 
-    const int juggleOrCube = 0; /// 0为积木, 1为大型物体
+    const int juggleOrCube = 1; /// 0为积木, 1为大型物体
 
     if (juggleOrCube == 0) {
         /// Yolo积木检测
@@ -230,19 +230,19 @@ void image_process(const std::shared_ptr<GraphicsGrasp>& _graphicsGrasp, cv::Mat
 
         _graphicsGrasp->getObjPose(RotRectsAndID.first[i], PoseL, cloud, juggleOrCube, 0, 0, 3.0);
 
-        if (PoseL[0] > _graphicsGrasp->lieThreshL) { // 躺着的
-            printf("[INFO] 左臂待抓取物体为躺着的\n");
-        } else { // 立着的
-            printf("[INFO] 左臂待抓取物体为立着的");
-        }
-
-        _graphicsGrasp->getObjPose(RotRectsAndID.first[i], PoseR, cloud, juggleOrCube, 0, 1, 3.0);
-
-        if (PoseR[0] < _graphicsGrasp->lieThreshR) { // 躺着的
-            printf("[INFO] 右臂待抓取物体为躺着的");
-        } else { // 立着的
-            printf("[INFO] 右臂待抓取物体为立着的");
-        }
+//        if (PoseL[0] > _graphicsGrasp->lieThreshL) { // 躺着的
+//            printf("[INFO] 左臂待抓取物体为躺着的\n");
+//        } else { // 立着的
+//            printf("[INFO] 左臂待抓取物体为立着的");
+//        }
+//
+//        _graphicsGrasp->getObjPose(RotRectsAndID.first[i], PoseR, cloud, juggleOrCube, 0, 1, 3.0);
+//
+//        if (PoseR[0] < _graphicsGrasp->lieThreshR) { // 躺着的
+//            printf("[INFO] 右臂待抓取物体为躺着的");
+//        } else { // 立着的
+//            printf("[INFO] 右臂待抓取物体为立着的");
+//        }
 
         /// 显示目标物体外接矩形
         cv::Point2f P[4];
@@ -323,13 +323,21 @@ int main(int argc, char** argv)
 //    color = cv::imread("../../../grasp/data/images/35_color_0822.jpg");
 //    depth = cv::imread("../../../grasp/data/images/35_depth_0822.png", -1);
 
+    color = cv::imread("../../../grasp/data/images/0823/24_color_0823.jpg");
+    depth = cv::imread("../../../grasp/data/images/0823/24_depth_0823.png", -1);
+
     // 积木
 //    color = cv::imread("../../../grasp/data/images/old/04_color_0817.jpg");
 //    depth = cv::imread("../../../grasp/data/images/old/04_depth_0817.png", -1);
 
+    // 所有
+
+//    color = cv::imread("../../../grasp/data/images/0823/27_color_0823.jpg");
+//    depth = cv::imread("../../../grasp/data/images/0823/27_depth_0823.png", -1);
+
     // 立着
-    color = cv::imread("../../../grasp/data/images/27_color_0821.jpg");
-    depth = cv::imread("../../../grasp/data/images/27_depth_0821.png", -1);
+//    color = cv::imread("../../../grasp/data/images/27_color_0821.jpg");
+//    depth = cv::imread("../../../grasp/data/images/27_depth_0821.png", -1);
 
     // 躺着
 //    color = cv::imread("../../../grasp/data/images/37_color_0821.jpg");

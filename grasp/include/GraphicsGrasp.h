@@ -192,8 +192,8 @@ public:
     const float LeftOrRightThresh = 400.0; // 左右臂分工阈值, 列数小于阈值为左臂管辖
     const float WorkAreaThreshL = 280.0; // 左侧工作区域分割阈值
     const float WorkAreaThreshR = 525.0; // 右侧工作区域分割阈值
-    const float WorkAreaThreshLL = 150.0; // 左侧工作区域分割阈值
-    const float WorkAreaThreshRR = 650.0; // 右侧工作区域分割阈值
+    const float WorkAreaThreshLL = 180.0; // 左侧工作区域分割阈值
+    const float WorkAreaThreshRR = 620.0; // 右侧工作区域分割阈值
 
     const float lieThreshL = 0.67; // 积木躺着或立着x方向阈值, 左 // 大于此值则为躺着的 0.656 立着 0.683 躺着
     const float lieThreshR = -0.63; // 积木躺着或立着x方向阈值, 右 // 小于此值即为躺着的 -0.616 立着 -0.643 躺着

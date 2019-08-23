@@ -97,10 +97,13 @@ private:
     // 双臂同时抓取
     bool graspControlDual();
 
+    // 积木优先抓取
+    bool graspControlJuggleFirst();
+
     bool graspControlTask2();
 
     // 双臂同时抓取大长方体
-    bool graspControlBigCubeT3();
+    bool graspControlTask3();
 
     bool graspControlTask4();
 
@@ -212,33 +215,6 @@ private:
     }
 
 private:
-    /// 抓取相关参数
-    const double Vel_Lv1 = 0.5;
-    const double Acc_Lv1 = 0.05;
-    const double Vel_Lv2 = 1.5;
-    const double Acc_Lv2 = 0.05;
-
-    const double Vel_Lv2_ = 1.0;
-    const double Acc_Lv2_ = 1.0;
-
-    // 用于移动关节角
-    const double Vel_Lv3 = 1.0;
-    const double Acc_Lv3 = 1.0;
-
-    // 用于转动末端姿态
-    const double Vel_Lv4 = 4.0;
-    const double Acc_Lv4 = 4.0;
-
-    bool BigCubePicked = false;
-
-    bool BallPicked = false;
-    int PickedBigCubeCnt = 0; // 已抓取积木数
-    int PickedSmallCubeCnt = 0; // 已抓取小立方体数
-    int PlacedSmallCubeCntL = 0; // 左侧已放置小立方体数
-    int PlacedSmallCubeCntR = 0; // 右侧已放置小立方体数
-
-    std::vector<int> PlacedCubeIDL; // 存储四个位置对应的小立方体ID
-    std::vector<int> PlacedCubeIDR; // 存储四个位置对应的小立方体ID
 
     /// 垂直抓取相关位置
     // 起始位置
@@ -288,22 +264,22 @@ private:
                                            D2R(-169.197),
                                            D2R(-92.52), D2R(-104.37), D2R(12.86), D2R(-40.35), D2R(-4.63), D2R(157.63)};
     // 左侧放置位置1
-    const std::vector<double> PlaceJointsL1 = {D2R(92.273), D2R(34.669), D2R(-121.205), D2R(19.228), D2R(2.178), D2R(-97.334)};
+    const std::vector<double> PlaceJointsL1 = {D2R(92.273), D2R(34.669), D2R(-87.930), D2R(19.228), D2R(2.178), D2R(-97.334)};
 
     // 左侧放置位置2
     const std::vector<double> PlaceJointsL2 = {D2R(91.706), D2R(44.431), D2R(-98.776), D2R(36.571), D2R(1.611), D2R(-97.276)};
 
     // 左侧放置位置3
-    const std::vector<double> PlaceJointsL3 = {D2R(91.459), D2R(52.591), D2R(-81.059), D2R(46.086), D2R(1.364), D2R(-97.236)};
+    const std::vector<double> PlaceJointsL3 = {D2R(91.459), D2R(18.540), D2R(-107.10), D2R(43.650), D2R(1.364), D2R(-97.236)};
 
     // 右侧放置位置1
-    const std::vector<double> PlaceJointsR1 = {D2R(-92.273), D2R(-34.699), D2R(121.205), D2R(-19.228), D2R(-2.178), D2R(97.334)};
+    const std::vector<double> PlaceJointsR1 = {D2R(-92.273), D2R(-34.699), D2R(87.930), D2R(-19.228), D2R(-2.178), D2R(97.334)};
 
     // 右侧放置位置2
-    const std::vector<double> PlaceJointsR2 = {D2R(-91.706), D2R(-44.431), D2R(98.776), D2R(-36.571), D2R(-1.611), D2R(97.276)};
+    const std::vector<double> PlaceJointsR2 = {D2R(-91.706), D2R(-25.740), D2R(98.776), D2R(-36.571), D2R(-1.611), D2R(97.276)};
 
     // 右侧放置位置3
-    const std::vector<double> PlaceJointsR3 = {D2R(-91.459), D2R(-52.591), D2R(81.059), D2R(-46.086), D2R(-1.364), D2R(97.236)};
+    const std::vector<double> PlaceJointsR3 = {D2R(-91.459), D2R(-18.540), D2R(107.10), D2R(-43.650), D2R(-1.364), D2R(97.236)};
 
 
     /// 任务2小立方体放置位置
@@ -339,32 +315,6 @@ private:
     const std::vector<double> PlaceJointsR4_T2 = {D2R(-98.871), D2R(-64.909), D2R(62.920), D2R(-52.076), D2R(-8.872),
                                                   D2R(-0.092)};
 
-    /// 笛卡尔
-
-    // 放置位置1-左臂
-    const std::vector<double> PlacePoseL1_T2 = {0.280, -0.280, 0.150, D2R(90), D2R(0), D2R(90)};
-
-    // 放置位置2-左臂
-    const std::vector<double> PlacePoseL2_T2 = {0.280, -0.420, 0.150, D2R(90), D2R(0), D2R(90)};
-
-    // 放置位置3-左臂
-    const std::vector<double> PlacePoseL3_T2 = {0.280, -0.280, 0.01, D2R(90), D2R(0), D2R(90)};
-
-    // 放置位置4-左臂
-    const std::vector<double> PlacePoseL4_T2 = {0.280, -0.420, 0.01, D2R(90), D2R(0), D2R(90)};
-
-    // 放置位置1-右臂
-    const std::vector<double> PlacePoseR1_T2 = {-0.280, 0.280, 0.150, D2R(90), D2R(0), D2R(-90)};
-
-    // 放置位置2-右臂
-    const std::vector<double> PlacePoseR2_T2 = {-0.280, 0.420, 0.150, D2R(90), D2R(0), D2R(-90)};
-
-    // 放置位置3-右臂
-    const std::vector<double> PlacePoseR3_T2 = {-0.280, 0.280, 0.01, D2R(90), D2R(0), D2R(-90)};
-
-    // 放置位置4-右臂
-    const std::vector<double> PlacePoseR4_T2 = {-0.280, 0.420, 0.01, D2R(90), D2R(0), D2R(-90)};
-
     /// 任务2装配位置
     // 装配位置-左臂 FIXME
     const std::vector<double> TogetherJointsL = {D2R(127.69), D2R(77.56), D2R(-27.28), D2R(-14.84), D2R(-89.91),
@@ -393,6 +343,63 @@ private:
     // 装配位置-右臂 FIXME
     const std::vector<double> ExchangeInitJointsR = {D2R(-123.516), D2R(-56.880), D2R(58.283), D2R(25.079), D2R(89.992),
                                                      D2R(146.484)};
+
+    /// 任务2大长方体放置位置
+    // 放置位置1-左臂
+    const std::vector<double> PlaceJointsL1_T3 = {D2R(100.065), D2R(35.986), D2R(-76.171), D2R(67.843), D2R(10.065),
+                                                  D2R(0.000)};
+
+    // 放置位置2-左臂
+    const std::vector<double> PlaceJointsL2_T3 = {D2R(100.065), D2R(44.929), D2R(-81.642), D2R(53.430), D2R(10.065),
+                                                  D2R(0.000)};
+
+    // 放置位置1-右臂
+    const std::vector<double> PlaceJointsR1_T3 = {D2R(-100.065), D2R(-35.986), D2R(76.171), D2R(-67.843), D2R(-10.065),
+                                                  D2R(-0.000)};
+
+    // 放置位置2-右臂
+    const std::vector<double> PlaceJointsR2_T3 = {D2R(-100.065), D2R(-44.929), D2R(81.642), D2R(-53.430), D2R(-10.065),
+                                                  D2R(-0.000)};
+
+private:
+    /// 抓取相关参数
+    const double Vel_Lv1 = 0.5;
+    const double Acc_Lv1 = 0.05;
+
+    const double Vel_Lv2 = 1.5;
+    const double Acc_Lv2 = 0.05;
+
+    const double Vel_Lv2_ = 1.0;
+    const double Acc_Lv2_ = 1.0;
+
+    const double Vel_Lv3_ = 1.5;
+    const double Acc_Lv3_ = 1.5;
+
+    // 用于移动关节角
+    const double Vel_Lv3 = 1.0;
+    const double Acc_Lv3 = 1.0;
+
+    // 用于转动末端姿态
+    const double Vel_Lv4 = 4.0;
+    const double Acc_Lv4 = 4.0;
+
+    bool BigCubePicked = false;
+    int PickedCubeCntTask3 = 0; // 已抓取大长方体数
+    int BigCubePickedNumL = 0; // 左臂已抓取大长方体数
+    int BigCubePickedNumR = 0; // 右臂已抓取大长方体数
+
+    bool BallPicked = false;
+    bool JugglesPicked = false;
+
+    int JugglesPickedNum = 0;
+
+    int PickedBigCubeCnt = 0; // 已抓取积木数
+    int PickedSmallCubeCnt = 0; // 已抓取小立方体数
+    int PlacedSmallCubeCntL = 0; // 左侧已放置小立方体数
+    int PlacedSmallCubeCntR = 0; // 右侧已放置小立方体数
+
+    std::vector<int> PlacedCubeIDL; // 存储四个位置对应的小立方体ID
+    std::vector<int> PlacedCubeIDR; // 存储四个位置对应的小立方体ID
 
 };
 #endif //GRASP_CONTROLLER_H

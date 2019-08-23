@@ -81,7 +81,8 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectG
     std::vector<float> confidences;
     std::vector<cv::Rect> boxes;
 
-    cv::Rect rect(cv::Point(LU_[0], LU_[1]), cv::Size(RD_[0]-LU_[0], RD_[1]-LU_[1]));
+//    cv::Rect rect(cv::Point(LU_[0], LU_[1]), cv::Size(RD_[0]-LU_[0], RD_[1]-LU_[1]));
+    cv::Rect rect (cv::Point(WorkAreaThreshLL, LU_[1]), cv::Size(WorkAreaThreshRR - WorkAreaThreshLL, (RD_[1] - LU_[1])));
     yoloDetector->detectObj(resized, classIds, confidences, boxes, rect, thresh, show);
 
     RotatedRectsAndID = detectJuggles(resized, cloud, classIds, confidences, boxes, rect, thresh, show);
@@ -405,7 +406,7 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectJ
 
             for(int c = 0; c < img_hsv.cols; ++c, ++itH) {
 
-                if ( r > LU.y && r < RD.y && c > (int)WorkAreaThreshL && c < (int)WorkAreaThreshR) { /// 限定像素范围为桌面中心区域
+                if ( r > LU.y && r < RD.y && c > (int)WorkAreaThreshLL && c < (int)WorkAreaThreshRR) { /// 限定像素范围为桌面中心区域
                     if (r > box.y && r < box.y+box.height && c > box.x && c < box.x+box.width) { /// 目标框中的区域
                         if (itH->val[0] < 60 && itH->val[2] > thresh_v_high) { /// HSV阈值分割 顶部>255 旁边>120
 
@@ -415,7 +416,7 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectJ
                             if (getPointLoc(r, c, center_x, center_y, center_z, cloud)) {
                                 std::vector<float> coorRaw = {center_x, center_y, center_z};
                                 std::vector<double> b2oXYZRPY = calcRealCoor(coorRaw, leftOrRight); // 计算基坐标到物体转换关系
-                                if(show == 1 || show == 2) cout << "当前点在机器人坐标系下的坐标: " << b2oXYZRPY[0] << endl;
+//                                if(show == 1 || show == 2) cout << "当前点在机器人坐标系下的坐标: " << b2oXYZRPY[0] << endl;
 
                                 // 存储当前点的实际x坐标及所在行列
                                 LocX.push_back(b2oXYZRPY[0]);
@@ -445,7 +446,7 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectJ
         }
 
         for (size_t j = 0; j < LocX.size(); j++) {
-            if (LocX[j] < MinX + 0.015) // 截取下方1cm范围内的点
+            if (LocX[j] < MinX + 0.014) // 截取下方1cm范围内的点
             {
                 auto *itM = maskTop.ptr<uint8_t>(LocRow[j]) + LocCol[j];
                 *itM = 255;
@@ -460,7 +461,7 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectJ
 
                 for(int c = 0; c < img_hsv.cols; ++c, ++itM, ++itH) {
 
-                    if (r > LU.y && r < RD.y && c > (int)WorkAreaThreshL && c < (int)WorkAreaThreshR) { /// 限定像素范围为桌面中心区域
+                    if (r > LU.y && r < RD.y && c > (int)WorkAreaThreshLL && c < (int)WorkAreaThreshRR) { /// 限定像素范围为桌面中心区域
                         if (r > box.y && r < box.y+box.height && c > box.x && c < box.x+box.width) { /// 目标框中的区域
                             if (itH->val[0] < 60 && itH->val[2] > thresh_v_high) { /// HSV阈值分割 顶部>255 旁边>120
                                 *itM = 255;
@@ -485,7 +486,7 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectJ
 
                 if (show == 1 || show == 2)
                     std::cout << "minAreaRectOut: center:" << rotRects[0].center << " angle: " <<
-                              rotRects[0].angle << " size: " << rotRects[0].size << std::endl;
+                              rotRects[0].angle << " size: " << rotRects[0].size << " area: " << rotRects[0].size.area() << std::endl;
             } else {
                 printf("[INFO] Ignore the triangular\n");
                 if (classIds[i] != 0) { /// 略过三棱柱
@@ -915,10 +916,15 @@ bool GraphicsGrasp::calRotatedRect(cv::Mat img, cv::Mat mask, const cv::Rect& bo
         printf("[INFO] Juggle area: %f\n", fabs(contourArea(contours[maxAreaIdx])));
 
         contourlist = contours[maxAreaIdx]; // 最大轮廓
-        rotRects.push_back(minAreaRect(contourlist));
-        // 获取整张图片下的中心位置
-        rotRects[0].center.x += box.x;
-        rotRects[0].center.y += box.y;
+        if (minAreaRect(contourlist).size.area() > 0) {
+            rotRects.push_back(minAreaRect(contourlist));
+            // 获取整张图片下的中心位置
+            rotRects[0].center.x += box.x;
+            rotRects[0].center.y += box.y;
+        } else {
+            printf("\033[0;33m%s\033[0m\n", "============== 外接矩形面积太小 略过 ===========");
+            return false;
+        }
 
     } else if (objLev == 1 | objLev == 2) { // 中等物体-带孔正方体 或 最大物体-球/正方体
         if (bigAreaIdx.empty())
