@@ -195,6 +195,10 @@ public:
     const float WorkAreaThreshLL = 180.0; // 左侧工作区域分割阈值
     const float WorkAreaThreshRR = 620.0; // 右侧工作区域分割阈值
 
+    const float WorkAreaThreshLT3 = 200.0; // 左侧工作区域分割阈值
+    const float WorkAreaThreshRT3 = 600.0; // 右侧工作区域分割阈值
+
+
     const float lieThreshL = 0.67; // 积木躺着或立着x方向阈值, 左 // 大于此值则为躺着的 0.656 立着 0.683 躺着
     const float lieThreshR = -0.63; // 积木躺着或立着x方向阈值, 右 // 小于此值即为躺着的 -0.616 立着 -0.643 躺着
 

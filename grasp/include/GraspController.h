@@ -369,19 +369,21 @@ private:
     const double Vel_Lv2 = 1.5;
     const double Acc_Lv2 = 0.05;
 
-    const double Vel_Lv2_ = 1.0;
-    const double Acc_Lv2_ = 1.0;
+    const double Vel_Lv2_ = 1.5;
+    const double Acc_Lv2_ = 1.5;
 
     const double Vel_Lv3_ = 1.5;
     const double Acc_Lv3_ = 1.5;
 
     // 用于移动关节角
-    const double Vel_Lv3 = 1.0;
-    const double Acc_Lv3 = 1.0;
+    const double Vel_Lv3 = 2.5;
+    const double Acc_Lv3 = 2.5;
 
     // 用于转动末端姿态
     const double Vel_Lv4 = 4.0;
     const double Acc_Lv4 = 4.0;
+
+    int pickAttemptCnt = 0;
 
     bool BigCubePicked = false;
     int PickedCubeCntTask3 = 0; // 已抓取大长方体数

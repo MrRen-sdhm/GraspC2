@@ -327,11 +327,10 @@ int main(int argc, char** argv)
     depth = cv::imread("../../../grasp/data/images/0823/24_depth_0823.png", -1);
 
     // 积木
-//    color = cv::imread("../../../grasp/data/images/old/04_color_0817.jpg");
-//    depth = cv::imread("../../../grasp/data/images/old/04_depth_0817.png", -1);
+//    color = cv::imread("../../../grasp/data/images/24_color_0824.jpg");
+//    depth = cv::imread("../../../grasp/data/images/24_depth_0824.png", -1);
 
     // 所有
-
 //    color = cv::imread("../../../grasp/data/images/0823/27_color_0823.jpg");
 //    depth = cv::imread("../../../grasp/data/images/0823/27_depth_0823.png", -1);
 

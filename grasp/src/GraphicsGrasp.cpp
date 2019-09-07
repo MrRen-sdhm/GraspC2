@@ -761,7 +761,7 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectB
 
         for(int c = 0; c < img_hsv.cols; ++c, ++itH) {
 
-            if (r > LU.y && r < RD.y && c > (int)WorkAreaThreshL && c < (int)WorkAreaThreshR) { /// 限定像素范围为桌面中心区域
+            if (r > LU.y && r < RD.y && c > (int)WorkAreaThreshLT3 && c < (int)WorkAreaThreshRT3) { /// 限定像素范围为桌面中心区域
                 if (itH->val[0] < 60 && itH->val[2] > thresh_v_high) { /// HSV阈值分割 顶部>255 旁边>120
 
                     /// 计算当前点在机器人坐标系下的坐标
@@ -815,7 +815,7 @@ std::pair<std::vector<cv::RotatedRect>, std::vector<int>> GraphicsGrasp::detectB
 
             for(int c = 0; c < img_hsv.cols; ++c, ++itM, ++itH) {
 
-                if (r > LU.y && r < RD.y && c > (int)WorkAreaThreshL && c < (int)WorkAreaThreshR) { /// 限定像素范围为桌面中心区域
+                if (r > LU.y && r < RD.y && c > (int)WorkAreaThreshLT3 && c < (int)WorkAreaThreshRT3) { /// 限定像素范围为桌面中心区域
                     if (itH->val[0] < 60 && itH->val[2] > thresh_v_high) { /// HSV阈值分割 顶部>255 旁边>120
                         *itM = 255;
                     }
@@ -916,13 +916,14 @@ bool GraphicsGrasp::calRotatedRect(cv::Mat img, cv::Mat mask, const cv::Rect& bo
         printf("[INFO] Juggle area: %f\n", fabs(contourArea(contours[maxAreaIdx])));
 
         contourlist = contours[maxAreaIdx]; // 最大轮廓
-        if (minAreaRect(contourlist).size.area() > 0) {
+        if (minAreaRect(contourlist).size.area() > 160) {
             rotRects.push_back(minAreaRect(contourlist));
             // 获取整张图片下的中心位置
             rotRects[0].center.x += box.x;
             rotRects[0].center.y += box.y;
         } else {
             printf("\033[0;33m%s\033[0m\n", "============== 外接矩形面积太小 略过 ===========");
+            cout << "minAreaRect(contourlist).size.area() " << minAreaRect(contourlist).size.area() << endl;
             return false;
         }
 
@@ -1379,6 +1380,9 @@ void GraphicsGrasp::showWorkArea(cv::Mat &image) {
     // 任务2积木检测区域
     rectangle(frame, cv::Rect (cv::Point(WorkAreaThreshLL, LU_[1]), cv::Size(WorkAreaThreshRR - WorkAreaThreshLL,
             (RD_[1] - LU_[1]))), cv::Scalar(0, 255, 0), 1);
+
+    rectangle(frame, cv::Rect (cv::Point(WorkAreaThreshLT3, LU_[1]), cv::Size(WorkAreaThreshRT3 - WorkAreaThreshLT3,
+                                                                             (RD_[1] - LU_[1]))), cv::Scalar(0, 0, 0), 1);
 
     cv::Rect rect(cv::Point(LU_[0], LU_[1]), cv::Size(RD_[0]-LU_[0], RD_[1]-LU_[1]));
     rectangle(frame, rect, cv::Scalar(0, 0, 255), 1);
